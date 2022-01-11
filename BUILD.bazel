@@ -1,0 +1,19 @@
+# Copyright (c) 2022 Mark Friedenbach
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+
+cc_binary(
+    name = "webminer",
+    srcs = ["main.cc"],
+    deps = [
+        "@com_google_absl//absl/flags:parse",
+        "@com_google_absl//absl/flags:usage",
+        "@com_google_absl//absl/strings:strings",
+    ],
+)
+
+# End of File
