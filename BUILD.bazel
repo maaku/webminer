@@ -13,7 +13,119 @@ cc_binary(
         "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/flags:usage",
         "@com_google_absl//absl/strings:strings",
+        ":cpr",
     ],
+)
+
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "cmake")
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+cmake(
+    name = "cpr",
+    cache_entries = {
+        "BUILD_SHARED_LIBS": "NO",
+        "CMAKE_C_FLAGS": "-fPIC",
+        "CPR_FORCE_USE_SYSTEM_CURL": "ON",
+        "FETCHCONTENT_FULLY_DISCONNECTED": "ON",
+    },
+    deps = [
+        "@boringssl//:ssl",
+        ":curl",
+        ":zlib",
+    ],
+    lib_source = "@cpr//:all_srcs",
+    install = True,
+    out_static_libs = ["libcpr.a"],
+)
+
+cmake(
+    name = "curl",
+    cache_entries = {
+        "BUILD_SHARED_LIBS": "NO",
+        "CMAKE_C_FLAGS": "-fPIC",
+        "CURL_DISABLE_LDAP": "YES",
+    },
+    deps = [
+        "@boringssl//:ssl",
+        ":gcrypt",
+        ":ssh2",
+    ],
+    lib_source = "@curl//:all_srcs",
+    install = True,
+    out_static_libs = ["libcurl.a"],
+    linkopts = select({
+        "@bazel_tools//src/conditions:darwin": [
+            "-framework", "SystemConfiguration",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+configure_make(
+    name = "gcrypt",
+    configure_in_place = True, # Required by autogen=True
+    autogen = True,
+    env = {
+        "AR": "",
+    },
+    configure_options = [
+        "--disable-doc",
+        "--disable-shared",
+    ],
+    lib_source = "@gcrypt//:all_srcs",
+    out_static_libs = ["libgcrypt.a"],
+    deps = [
+        ":gpg_error",
+    ],
+)
+
+configure_make(
+    name = "gpg_error",
+    configure_in_place = True, # Required by autogen=True
+    autogen = True,
+    env = {
+        "AR": "",
+    },
+    configure_options = [
+        "--disable-doc",
+        "--disable-shared",
+    ],
+    lib_source = "@gpg_error//:all_srcs",
+    out_static_libs = ["libgpg-error.a"],
+)
+
+configure_make(
+    name = "ldap",
+    configure_options = [
+        "--disable-debug",
+    ],
+    copts = ["-UDEBUG"],
+    lib_source = "@ldap//:all_srcs",
+    out_static_libs = ["libldap.a"],
+)
+
+cmake(
+    name = "ssh2",
+    cache_entries = {
+        "CMAKE_C_FLAGS": "-fPIC",
+    },
+    deps = [
+        ":gcrypt",
+    ],
+    lib_source = "@ssh2//:all_srcs",
+    install = True,
+    out_static_libs = ["libssh2.a"],
+)
+
+cmake(
+    name = "zlib",
+    cache_entries = {
+        "CMAKE_C_FLAGS": "-fPIC",
+        "ZLIB_COMPAT": "ON",
+    },
+    lib_source = "@zlib//:all_srcs",
+    install = True,
+    out_static_libs = ["libz.a"],
 )
 
 # End of File

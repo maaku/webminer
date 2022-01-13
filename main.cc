@@ -14,11 +14,17 @@
 
 #include "absl/strings/str_cat.h"
 
+#include <cpr/cpr.h>
+
 int main(int argc, char **argv)
 {
     absl::SetProgramUsageMessage(absl::StrCat("Webcash mining daemon.\n", argv[0]));
 
     absl::ParseCommandLine(argc, argv);
+
+    cpr::Response r = cpr::Get(cpr::Url{"https://webcash.tech/api/v1/target"});
+    std::cout << r.status_code << std::endl;
+    std::cout << r.text << std::endl;
 
     return 0;
 }
