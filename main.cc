@@ -18,28 +18,67 @@
 
 #include <univalue.h>
 
+struct ProtocolSettings {
+    // The amount the miner is allowed to claim.
+    int64_t mining_amount;
+    // The amount which is surrendered to the server operator.
+    int64_t subsidy_amount;
+    // The ratio of initial issuance distributed to expected amount.
+    float ratio;
+    // The number of leading bits which must be zero for a work candidate to be
+    // accepted by the server.
+    int difficulty;
+};
+
+bool get_protocol_settings(ProtocolSettings& settings)
+{
+    cpr::Response r = cpr::Get(cpr::Url{"https://webcash.tech/api/v1/target"});
+    if (r.status_code != 200) {
+        std::cerr << "Error: returned invalid response to ProtocolSettings request: status_code=" << r.status_code << ", text='" << r.text << "'" << std::endl;
+        return false;
+    }
+    UniValue o;
+    o.read(r.text);
+    const UniValue& difficulty = o["difficulty_target_bits"];
+    if (!difficulty.isNum()) {
+        std::cerr << "Error: expected integer for 'difficulty' field of ProtocolSettings response, got '" << difficulty.write() << "' instead." << std::endl;
+        return false;
+    }
+    const UniValue& ratio = o["ratio"];
+    if (!ratio.isNum()) {
+        std::cerr << "Error: expected real number for 'ratio' field of ProtocolSettings response, got '" << ratio.write() << "' instead." << std::endl;
+        return false;
+    }
+    const UniValue& mining_amount = o["mining_amount"];
+    if (!mining_amount.isNum()) {
+        std::cerr << "Error: expected integer for 'mining_amount' field of ProtocolSettings response, got '" << mining_amount.write() << "' instead." << std::endl;
+        return false;
+    }
+    const UniValue& subsidy_amount = o["mining_subsidy_amount"];
+    if (!subsidy_amount.isNum()) {
+        std::cerr << "Error: expected integer for 'subsidy_amount' field of ProtocolSettings response, got '" << subsidy_amount.write() << "' instead." << std::endl;
+        return false;
+    }
+    settings.difficulty = difficulty.get_int();
+    settings.ratio = ratio.get_real();
+    settings.mining_amount = mining_amount.get_int64();
+    settings.subsidy_amount = subsidy_amount.get_int64();
+    return true;
+}
+
 int main(int argc, char **argv)
 {
     absl::SetProgramUsageMessage(absl::StrCat("Webcash mining daemon.\n", argv[0]));
-
     absl::ParseCommandLine(argc, argv);
 
-    cpr::Response r = cpr::Get(cpr::Url{"https://webcash.tech/api/v1/target"});
-
-    if (r.status_code != 200) {
-        std::cout << "Server returned unexpected " << r.status_code << "; exiting" << std::endl;
-        std::cout << "Response: " << r.text << std::endl;
-        return r.status_code;
+    ProtocolSettings settings;
+    if (!get_protocol_settings(settings)) {
+        std::cerr << "Error: could not fetch protocol settings from server; exiting" << std::endl;
+        return 1;
     }
-
-    UniValue o;
-    o.read(r.text);
-    const UniValue& ratio = o["ratio"];
-    const UniValue& difficulty = o["difficulty_target_bits"];
-
     std::cout << "server says"
-              << " difficulty=" << o["difficulty_target_bits"].get_int()
-              << " ratio=" << o["ratio"].get_real()
+              << " difficulty=" << settings.difficulty
+              << " ratio=" << settings.ratio
               << std::endl;
 
     return 0;
