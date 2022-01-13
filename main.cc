@@ -14,6 +14,9 @@
 
 #include "absl/strings/str_cat.h"
 
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
+
 #include <cpr/cpr.h>
 
 #include <univalue.h>
@@ -66,6 +69,19 @@ bool get_protocol_settings(ProtocolSettings& settings)
     return true;
 }
 
+std::string get_speed_string(int64_t attempts, absl::Time begin, absl::Time end) {
+    float speed = attempts / absl::ToDoubleSeconds(end - begin);
+    if (speed < 2e3f)
+        return std::to_string(speed) + " hps";
+    if (speed < 2e6f)
+        return std::to_string(speed / 1e3f) + " khps";
+    if (speed < 2e9f)
+        return std::to_string(speed / 1e6f) + " Mhps";
+    if (speed < 2e12f)
+        return std::to_string(speed / 1e9f) + " Ghps";
+    return std::to_string(speed / 1e12f) + " Thps";
+}
+
 int main(int argc, char **argv)
 {
     absl::SetProgramUsageMessage(absl::StrCat("Webcash mining daemon.\n", argv[0]));
@@ -80,6 +96,33 @@ int main(int argc, char **argv)
               << " difficulty=" << settings.difficulty
               << " ratio=" << settings.ratio
               << std::endl;
+    absl::Time current_time = absl::Now();
+    absl::Time last_settings_fetch = current_time;
+    absl::Time next_settings_fetch = current_time + absl::Seconds(5);
+
+    bool done = false;
+    int64_t attempts = 0;
+    while (!done) {
+        current_time = absl::Now();
+        if (current_time >= next_settings_fetch) {
+            // Fetch updated protocol settings, and report changes + current
+            // hash speed to the user.
+            if (get_protocol_settings(settings)) {
+                std::cout << "server says"
+                          << " difficulty=" << settings.difficulty
+                          << " ratio=" << settings.ratio
+                          << " speed=" << get_speed_string(attempts, last_settings_fetch, current_time)
+                          << std::endl;
+            }
+            // Schedule the next settings fetch
+            last_settings_fetch = current_time;
+            next_settings_fetch = current_time + absl::Seconds(5);
+            // Reset hash counter
+            attempts = 0;
+        }
+
+        ++attempts;
+    }
 
     return 0;
 }
