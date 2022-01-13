@@ -21,6 +21,8 @@
 
 #include <univalue.h>
 
+#include "crypto/sha256.h"
+
 struct ProtocolSettings {
     // The amount the miner is allowed to claim.
     int64_t mining_amount;
@@ -87,6 +89,9 @@ int main(int argc, char **argv)
     absl::SetProgramUsageMessage(absl::StrCat("Webcash mining daemon.\n", argv[0]));
     absl::ParseCommandLine(argc, argv);
 
+    const std::string algo = SHA256AutoDetect();
+    std::cout << "Using SHA256 algorithm '" << algo << "'." << std::endl;
+
     ProtocolSettings settings;
     if (!get_protocol_settings(settings)) {
         std::cerr << "Error: could not fetch protocol settings from server; exiting" << std::endl;
@@ -120,6 +125,9 @@ int main(int argc, char **argv)
             // Reset hash counter
             attempts = 0;
         }
+
+        unsigned char hash[CSHA256::OUTPUT_SIZE];
+        CSHA256().Finalize(hash);
 
         ++attempts;
     }

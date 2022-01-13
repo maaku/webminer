@@ -1,0 +1,13 @@
+Webminer uses code that is forked from Bitcoin, and the Bitcoin code
+was licensed to the Webminer Developers under the terms of the MIT
+license (see: mit-license.txt).
+
+However all changes made by the Webminer Developers has copyright held
+by the Webminer Developers and is licensed only under the terms of the
+Mozilla Public License Version 2.0 (see: MPL-2-0.txt).
+
+As permitted by the MIT license, the Bitcoin portions are sublicensed
+for distribution under the terms of the Mozilla Public License Version
+2.0, and so the combined work is distributed under the conjunctive
+terms of BOTH licenses, and BOTH licenses must be observed for any
+source or binary distribution, or future fork or derived work.
