@@ -101,6 +101,15 @@ http_archive(
     sha256 = "b0d0d13ea9753ef737565864fad30600295baba53ecc77cfba3923ae0d7cbdf3",
 )
 
+# univalue source code repository
+http_archive(
+    name = "univalue",
+    build_file_content = _ALL_CONTENT,
+    strip_prefix = "univalue-1.1.1",
+    url = "https://github.com/jgarzik/univalue/archive/refs/tags/v1.1.1.zip",
+    sha256 = "50a4e306c782c77b84dee5c53049c0a072e1973d6bb76141cf41cec6ae57649f",
+)
+
 # zlib-ng source code repository
 http_archive(
     name = "zlib",

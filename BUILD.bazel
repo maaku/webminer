@@ -14,6 +14,7 @@ cc_binary(
         "@com_google_absl//absl/flags:usage",
         "@com_google_absl//absl/strings:strings",
         ":cpr",
+        ":univalue",
     ],
 )
 
@@ -115,6 +116,17 @@ cmake(
     lib_source = "@ssh2//:all_srcs",
     install = True,
     out_static_libs = ["libssh2.a"],
+)
+
+configure_make(
+    name = "univalue",
+    configure_in_place = True, # Required by autogen=True
+    autogen = True,
+    env = {
+        "AR": "",
+    },
+    lib_source = "@univalue//:all_srcs",
+    out_static_libs = ["libunivalue.a"],
 )
 
 cmake(

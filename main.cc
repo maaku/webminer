@@ -16,6 +16,8 @@
 
 #include <cpr/cpr.h>
 
+#include <univalue.h>
+
 int main(int argc, char **argv)
 {
     absl::SetProgramUsageMessage(absl::StrCat("Webcash mining daemon.\n", argv[0]));
@@ -23,8 +25,22 @@ int main(int argc, char **argv)
     absl::ParseCommandLine(argc, argv);
 
     cpr::Response r = cpr::Get(cpr::Url{"https://webcash.tech/api/v1/target"});
-    std::cout << r.status_code << std::endl;
-    std::cout << r.text << std::endl;
+
+    if (r.status_code != 200) {
+        std::cout << "Server returned unexpected " << r.status_code << "; exiting" << std::endl;
+        std::cout << "Response: " << r.text << std::endl;
+        return r.status_code;
+    }
+
+    UniValue o;
+    o.read(r.text);
+    const UniValue& ratio = o["ratio"];
+    const UniValue& difficulty = o["difficulty_target_bits"];
+
+    std::cout << "server says"
+              << " difficulty=" << o["difficulty_target_bits"].get_int()
+              << " ratio=" << o["ratio"].get_real()
+              << std::endl;
 
     return 0;
 }
