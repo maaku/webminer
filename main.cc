@@ -21,6 +21,8 @@
 
 #include <cpr/cpr.h>
 
+#include <openssl/bn.h>
+
 #include <univalue.h>
 
 #include "crypto/sha256.h"
@@ -111,6 +113,28 @@ std::string to_string(const PublicWebcash& epk)
     return webcash_string(epk.amount, "public", epk.pk);
 }
 
+bool check_proof_of_work(const uint256& hash, int difficulty)
+{
+    const unsigned char* ptr = hash.begin();
+    while (difficulty >= 8) {
+        if (*ptr != 0) {
+            return false;
+        }
+        ++ptr;
+        difficulty -= 8;
+    }
+    switch (difficulty) {
+        case 1: return (*ptr <= 0x7f);
+        case 2: return (*ptr <= 0x3f);
+        case 3: return (*ptr <= 0x1f);
+        case 4: return (*ptr <= 0x0f);
+        case 5: return (*ptr <= 0x07);
+        case 6: return (*ptr <= 0x03);
+        case 7: return (*ptr <= 0x01);
+    }
+    return true;
+}
+
 std::string get_speed_string(int64_t attempts, absl::Time begin, absl::Time end) {
     float speed = attempts / absl::ToDoubleSeconds(end - begin);
     if (speed < 2e3f)
@@ -126,6 +150,8 @@ std::string get_speed_string(int64_t attempts, absl::Time begin, absl::Time end)
 
 int main(int argc, char **argv)
 {
+    using std::to_string;
+
     absl::SetProgramUsageMessage(absl::StrCat("Webcash mining daemon.\n", argv[0]));
     absl::ParseCommandLine(argc, argv);
 
@@ -137,6 +163,8 @@ int main(int argc, char **argv)
 
     const std::string algo = SHA256AutoDetect();
     std::cout << "Using SHA256 algorithm '" << algo << "'." << std::endl;
+
+    std::ofstream wallet_log("wallet.log", std::ofstream::app);
 
     ProtocolSettings settings;
     if (!get_protocol_settings(settings)) {
@@ -189,15 +217,57 @@ int main(int argc, char **argv)
         subsidy.amount = settings.subsidy_amount;
         GetStrongRandBytes(subsidy.sk.begin(), 32);
 
-        std::cout << "keep: " << to_string(keep) << std::endl;
-        std::cout << "subsidy: " << to_string(subsidy) << std::endl;
+        std::string prefix = absl::StrCat("{\"webcash\": [\"", to_string(keep), "\", \"", to_string(subsidy), "\"], \"subsidy\": [\"", to_string(subsidy), "\"], \"nonce\": ");
 
         for (int i = 0; i < 10000; ++i) {
             ++attempts;
 
+            std::string preimage = absl::Base64Escape(absl::StrCat(prefix, to_string(attempts), "}"));
             uint256 hash;
             CSHA256()
+                .Write((unsigned char*)preimage.data(), preimage.size())
                 .Finalize(hash.begin());
+
+            if (!(*(const uint16_t*)hash.begin()) && check_proof_of_work(hash, settings.difficulty)) {
+                BIGNUM bn;
+                BN_init(&bn);
+                BN_bin2bn((const uint8_t*)hash.begin(), 32, &bn);
+                char* work = BN_bn2dec(&bn);
+                BN_free(&bn);
+
+                std::string webcash = to_string(keep);
+                std::cout << "GOT SOLUTION!!! " << preimage << " " << absl::StrCat("0x" + absl::BytesToHexString(absl::string_view((const char*)hash.begin(), 32))) << " " << webcash << std::endl;
+
+                cpr::Response r = cpr::Post(
+                    cpr::Url{"https://webcash.tech/api/v1/mining_report"},
+                    cpr::Header{{"Content-Type", "application/json"}},
+                    cpr::Body{absl::StrCat("{\"preimage\": \"", preimage, "\", \"work\": ", work, "}")});
+                if (r.status_code != 200) {
+                    // server error, or difficulty changed against us
+                    std::cerr << "Error: returned invalid response to MiningReport request: status_code=" << r.status_code << ", text='" << r.text << "'" << std::endl;
+                    next_settings_fetch = current_time;
+                    continue;
+                }
+
+                wallet_log << webcash << std::endl;
+                wallet_log.flush();
+
+                // Generate new Webcash secrets, so that we don't reuse a secret
+                // if we happen to generate two solutions back-to-back.
+                GetStrongRandBytes(keep.sk.begin(), 32);
+                GetStrongRandBytes(subsidy.sk.begin(), 32);
+
+                UniValue o;
+                o.read(r.text);
+                const UniValue& difficulty = o["difficulty_target"];
+                if (difficulty.isNum()) {
+                    int bits = difficulty.get_int();
+                    if (bits != settings.difficulty) {
+                        std::cout << "Difficulty adjustment occured! Server says difficulty=" << bits << std::endl;
+                        settings.difficulty = bits;
+                    }
+                }
+            }
         }
     }
 
