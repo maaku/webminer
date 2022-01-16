@@ -12,7 +12,9 @@
 #include "absl/flags/parse.h"
 #include "absl/flags/usage.h"
 
+#include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
@@ -23,6 +25,7 @@
 
 #include "crypto/sha256.h"
 #include "random.h"
+#include "uint256.h"
 
 struct ProtocolSettings {
     // The amount the miner is allowed to claim.
@@ -70,6 +73,42 @@ bool get_protocol_settings(ProtocolSettings& settings)
     settings.mining_amount = mining_amount.get_int64();
     settings.subsidy_amount = subsidy_amount.get_int64();
     return true;
+}
+
+struct SecretWebcash {
+    uint256 sk;
+    int64_t amount;
+};
+
+static std::string webcash_string(int64_t amount, const absl::string_view& type, const uint256& hash)
+{
+    if (amount < 0) {
+        amount = 0;
+    }
+    return absl::StrCat("e", std::to_string(amount), ":", type, ":", absl::BytesToHexString(absl::string_view((const char*)hash.data(), hash.size())));
+}
+
+std::string to_string(const SecretWebcash& esk)
+{
+    return webcash_string(esk.amount, "secret", esk.sk);
+}
+
+struct PublicWebcash {
+    uint256 pk;
+    int64_t amount;
+
+    PublicWebcash(const SecretWebcash& esk)
+        : amount(esk.amount)
+    {
+        CSHA256()
+            .Write(esk.sk.data(), esk.sk.size())
+            .Finalize(pk.data());
+    }
+};
+
+std::string to_string(const PublicWebcash& epk)
+{
+    return webcash_string(epk.amount, "public", epk.pk);
 }
 
 std::string get_speed_string(int64_t attempts, absl::Time begin, absl::Time end) {
@@ -142,10 +181,24 @@ int main(int argc, char **argv)
             attempts = 0;
         }
 
-        unsigned char hash[CSHA256::OUTPUT_SIZE];
-        CSHA256().Finalize(hash);
+        SecretWebcash keep;
+        keep.amount = settings.mining_amount - settings.subsidy_amount;
+        GetStrongRandBytes(keep.sk.begin(), 32);
 
-        ++attempts;
+        SecretWebcash subsidy;
+        subsidy.amount = settings.subsidy_amount;
+        GetStrongRandBytes(subsidy.sk.begin(), 32);
+
+        std::cout << "keep: " << to_string(keep) << std::endl;
+        std::cout << "subsidy: " << to_string(subsidy) << std::endl;
+
+        for (int i = 0; i < 10000; ++i) {
+            ++attempts;
+
+            uint256 hash;
+            CSHA256()
+                .Finalize(hash.begin());
+        }
     }
 
     return 0;

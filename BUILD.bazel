@@ -110,6 +110,7 @@ cc_binary(
         ":cpr",
         ":random",
         ":sha2",
+        ":uint256",
         ":univalue",
     ],
 )
