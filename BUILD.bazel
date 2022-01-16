@@ -58,12 +58,21 @@ cc_library(
 
 cc_library(
     name = "sha2",
+    copts = [
+        "-msse4.1",
+    ],
+    defines = [
+        "ENABLE_SSE41",
+        "USE_ASM",
+    ],
     hdrs = [
         "crypto/sha256.h",
         "crypto/sha512.h",
     ],
     srcs = [
         "crypto/sha256.cc",
+        "crypto/sha256_sse4.cc",
+        "crypto/sha256_sse41.cc",
         "crypto/sha512.cc",
     ],
     deps = [
