@@ -47,58 +47,13 @@ filegroup(
 )
 """
 
-# libcpr source code repository
+# cpp-httplib source code repository
 http_archive(
-    name = "cpr",
+    name = "cpp_http",
     build_file_content = _ALL_CONTENT,
-    strip_prefix = "cpr-1.7.2",
-    url = "https://github.com/libcpr/cpr/archive/refs/tags/1.7.2.zip",
-    sha256 = "e1b208002cc1ccd1ab2e72943a377d760185bbe3276cb41d4144ce250de11b95",
-)
-
-# libcurl source code repository
-http_archive(
-    name = "curl",
-    build_file_content = _ALL_CONTENT,
-    strip_prefix = "curl-curl-7_81_0",
-    url = "https://github.com/curl/curl/archive/refs/tags/curl-7_81_0.zip",
-    sha256 = "9edcf885a780f2c9b1a9f5c6b757c158cd11492811c68cd9e0655458c7945311",
-)
-
-# libgcrypt source code repository
-http_archive(
-    name = "gcrypt",
-    build_file_content = _ALL_CONTENT,
-    strip_prefix = "libgcrypt-libgcrypt-1.8.8",
-    url = "https://github.com/gpg/libgcrypt/archive/refs/tags/libgcrypt-1.8.8.zip",
-    sha256 = "390272868bf0030d0c7b98a6e73092857bf105e3519bd77105b5d1b70f9ca226",
-)
-
-# libgpg-error source code repository
-http_archive(
-    name = "gpg_error",
-    build_file_content = _ALL_CONTENT,
-    strip_prefix = "libgpg-error-libgpg-error-1.42",
-    url = "https://github.com/gpg/libgpg-error/archive/refs/tags/libgpg-error-1.42.zip",
-    sha256 = "0f4ff69c65578ae900f59cce9052e46dd795559620a7aba00637ba421620d223",
-)
-
-# OpenLDAP source code repository
-http_archive(
-    name = "ldap",
-    build_file_content = _ALL_CONTENT,
-    strip_prefix = "openldap-OPENLDAP_REL_ENG_2_6_0",
-    url = "https://github.com/openldap/openldap/archive/refs/tags/OPENLDAP_REL_ENG_2_6_0.zip",
-    sha256 = "b55870513ea05e04a07accbb2029d68ee24097b879216680f1885426bca922b0",
-)
-
-# libssh2 source code repository
-http_archive(
-    name = "ssh2",
-    build_file_content = _ALL_CONTENT,
-    strip_prefix = "libssh2-libssh2-1.10.0",
-    url = "https://github.com/libssh2/libssh2/archive/refs/tags/libssh2-1.10.0.zip",
-    sha256 = "b0d0d13ea9753ef737565864fad30600295baba53ecc77cfba3923ae0d7cbdf3",
+    strip_prefix = "cpp-httplib-0.10.1",
+    url = "https://github.com/yhirose/cpp-httplib/archive/refs/tags/v0.10.1.zip",
+    sha256 = "4576b7f1775cc25ab5f76a9be8798910f756792e45b372127b0f5c018e86145e",
 )
 
 # univalue source code repository
@@ -108,15 +63,6 @@ http_archive(
     strip_prefix = "univalue-1.1.1",
     url = "https://github.com/jgarzik/univalue/archive/refs/tags/v1.1.1.zip",
     sha256 = "50a4e306c782c77b84dee5c53049c0a072e1973d6bb76141cf41cec6ae57649f",
-)
-
-# zlib-ng source code repository
-http_archive(
-    name = "zlib",
-    build_file_content = _ALL_CONTENT,
-    strip_prefix = "zlib-ng-2.0.6",
-    url = "https://github.com/zlib-ng/zlib-ng/archive/refs/tags/2.0.6.zip",
-    sha256 = "cb8af7677e5f3bd9e56a6b1c384d9c17bf3d44aeb3c0523453f00772185b337a",
 )
 
 # End of File

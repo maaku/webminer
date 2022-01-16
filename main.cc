@@ -19,7 +19,8 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 
-#include <cpr/cpr.h>
+#define CPPHTTPLIB_OPENSSL_SUPPORT
+#include <httplib.h>
 
 #include <openssl/bn.h>
 
@@ -43,13 +44,18 @@ struct ProtocolSettings {
 
 bool get_protocol_settings(ProtocolSettings& settings)
 {
-    cpr::Response r = cpr::Get(cpr::Url{"https://webcash.tech/api/v1/target"});
-    if (r.status_code != 200) {
-        std::cerr << "Error: returned invalid response to ProtocolSettings request: status_code=" << r.status_code << ", text='" << r.text << "'" << std::endl;
+    httplib::Client cli("https://webcash.tech");
+    auto r = cli.Get("/api/v1/target");
+    if (!r) {
+        std::cerr << "Error: returned invalid response to ProtocolSettings request: " << r.error() << std::endl;
+        return false;
+    }
+    if (r->status != 200) {
+        std::cerr << "Error: returned invalid response to ProtocolSettings request: status_code=" << r->status << ", text='" << r->body << "'" << std::endl;
         return false;
     }
     UniValue o;
-    o.read(r.text);
+    o.read(r->body);
     const UniValue& difficulty = o["difficulty_target_bits"];
     if (!difficulty.isNum()) {
         std::cerr << "Error: expected integer for 'difficulty' field of ProtocolSettings response, got '" << difficulty.write() << "' instead." << std::endl;
@@ -238,13 +244,18 @@ int main(int argc, char **argv)
                 std::string webcash = to_string(keep);
                 std::cout << "GOT SOLUTION!!! " << preimage << " " << absl::StrCat("0x" + absl::BytesToHexString(absl::string_view((const char*)hash.begin(), 32))) << " " << webcash << std::endl;
 
-                cpr::Response r = cpr::Post(
-                    cpr::Url{"https://webcash.tech/api/v1/mining_report"},
-                    cpr::Header{{"Content-Type", "application/json"}},
-                    cpr::Body{absl::StrCat("{\"preimage\": \"", preimage, "\", \"work\": ", work, "}")});
-                if (r.status_code != 200) {
+                httplib::Client cli("https://webcash.tech");
+                auto r = cli.Post(
+                    "/api/v1/mining_report",
+                    absl::StrCat("{\"preimage\": \"", preimage, "\", \"work\": ", work, "}"),
+                    "application/json");
+                if (!r) {
+                    std::cerr << "Error: returned invalid response to MiningReport request: " << r.error() << std::endl;
+                    continue;
+                }
+                if (r->status != 200) {
                     // server error, or difficulty changed against us
-                    std::cerr << "Error: returned invalid response to MiningReport request: status_code=" << r.status_code << ", text='" << r.text << "'" << std::endl;
+                    std::cerr << "Error: returned invalid response to MiningReport request: status_code=" << r->status << ", text='" << r->body << "'" << std::endl;
                     next_settings_fetch = current_time;
                     continue;
                 }
@@ -258,7 +269,7 @@ int main(int argc, char **argv)
                 GetStrongRandBytes(subsidy.sk.begin(), 32);
 
                 UniValue o;
-                o.read(r.text);
+                o.read(r->body);
                 const UniValue& difficulty = o["difficulty_target"];
                 if (difficulty.isNum()) {
                     int bits = difficulty.get_int();
