@@ -22,6 +22,7 @@
 #include <univalue.h>
 
 #include "crypto/sha256.h"
+#include "random.h"
 
 struct ProtocolSettings {
     // The amount the miner is allowed to claim.
@@ -89,6 +90,12 @@ int main(int argc, char **argv)
     absl::SetProgramUsageMessage(absl::StrCat("Webcash mining daemon.\n", argv[0]));
     absl::ParseCommandLine(argc, argv);
 
+    RandomInit();
+    if (!Random_SanityCheck()) {
+        std::cerr << "Error: RNG sanity check failed. RNG is not secure." << std::endl;
+        return 1;
+    }
+
     const std::string algo = SHA256AutoDetect();
     std::cout << "Using SHA256 algorithm '" << algo << "'." << std::endl;
 
@@ -104,6 +111,8 @@ int main(int argc, char **argv)
     absl::Time current_time = absl::Now();
     absl::Time last_settings_fetch = current_time;
     absl::Time next_settings_fetch = current_time + absl::Seconds(5);
+    absl::Time last_rng_update = current_time;
+    absl::Time next_rng_update = current_time + absl::Minutes(30);
 
     bool done = false;
     int64_t attempts = 0;
@@ -118,6 +127,13 @@ int main(int argc, char **argv)
                           << " ratio=" << settings.ratio
                           << " speed=" << get_speed_string(attempts, last_settings_fetch, current_time)
                           << std::endl;
+            }
+            if (current_time > next_rng_update) {
+                // Gather entropy for RNG
+                RandAddPeriodic();
+                // Schedule the next update
+                last_rng_update = current_time;
+                next_rng_update = current_time + absl::Minutes(30);
             }
             // Schedule the next settings fetch
             last_settings_fetch = current_time;

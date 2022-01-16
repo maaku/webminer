@@ -13,6 +13,46 @@ cc_library(
         "compat/cpuid.h",
         "compat/endian.h",
         "crypto/common.h",
+        "support/allocators/secure.h",
+        "support/cleanse.h",
+        "support/lockedpool.h",
+        "util/macros.h",
+    ],
+    srcs = [
+        "support/cleanse.cc",
+        "support/lockedpool.cc",
+    ],
+)
+
+cc_library(
+    name = "chacha20",
+    hdrs = [
+        "crypto/chacha20.h",
+    ],
+    srcs = [
+        "crypto/chacha20.cc",
+    ],
+    deps = [
+        ":common",
+    ],
+)
+
+cc_library(
+    name = "random",
+    hdrs = [
+        "random.h",
+        "randomenv.h",
+    ],
+    srcs = [
+        "random.cc",
+        "randomenv.cc",
+    ],
+    deps = [
+        "@com_google_absl//absl/time:time",
+        ":chacha20",
+        ":sha2",
+        ":sync",
+        ":uint256",
     ],
 )
 
@@ -31,6 +71,33 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "sync",
+    hdrs = [
+        "sync.h",
+        "threadsafety.h",
+    ],
+    srcs = [
+        "sync.cc",
+    ],
+    deps = [
+        ":common",
+    ],
+)
+
+cc_library(
+    name = "uint256",
+    hdrs = [
+        "uint256.h",
+    ],
+    srcs = [
+        "uint256.cc",
+    ],
+    deps = [
+        "@com_google_absl//absl/strings:strings",
+    ],
+)
+
 load("@rules_cc//cc:defs.bzl", "cc_binary")
 
 cc_binary(
@@ -41,6 +108,7 @@ cc_binary(
         "@com_google_absl//absl/flags:usage",
         "@com_google_absl//absl/strings:strings",
         ":cpr",
+        ":random",
         ":sha2",
         ":univalue",
     ],
