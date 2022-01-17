@@ -170,8 +170,6 @@ int main(int argc, char **argv)
     const std::string algo = SHA256AutoDetect();
     std::cout << "Using SHA256 algorithm '" << algo << "'." << std::endl;
 
-    std::ofstream wallet_log("wallet.log", std::ofstream::app);
-
     ProtocolSettings settings;
     if (!get_protocol_settings(settings)) {
         std::cerr << "Error: could not fetch protocol settings from server; exiting" << std::endl;
@@ -260,8 +258,11 @@ int main(int argc, char **argv)
                     continue;
                 }
 
-                wallet_log << webcash << std::endl;
-                wallet_log.flush();
+                {
+                    std::ofstream wallet_log("wallet.log", std::ofstream::app);
+                    wallet_log << webcash << std::endl;
+                    wallet_log.flush();
+                }
 
                 // Generate new Webcash secrets, so that we don't reuse a secret
                 // if we happen to generate two solutions back-to-back.
