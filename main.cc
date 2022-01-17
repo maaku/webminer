@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
 #include "absl/flags/usage.h"
 
@@ -156,12 +157,15 @@ std::string get_speed_string(int64_t attempts, absl::Time begin, absl::Time end)
     return std::to_string(speed / 1e12f) + " Thps";
 }
 
+ABSL_FLAG(std::string, wallet, "wallet.log", "filename to place generated webcash claim codes");
+
 int main(int argc, char **argv)
 {
     using std::to_string;
 
     absl::SetProgramUsageMessage(absl::StrCat("Webcash mining daemon.\n", argv[0]));
     absl::ParseCommandLine(argc, argv);
+    const std::string wallet_filename = absl::GetFlag(FLAGS_wallet);
 
     RandomInit();
     if (!Random_SanityCheck()) {
@@ -263,7 +267,7 @@ int main(int argc, char **argv)
                 }
 
                 {
-                    std::ofstream wallet_log("wallet.log", std::ofstream::app);
+                    std::ofstream wallet_log(wallet_filename, std::ofstream::app);
                     wallet_log << webcash << std::endl;
                     wallet_log.flush();
                 }
