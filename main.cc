@@ -45,6 +45,8 @@ struct ProtocolSettings {
 bool get_protocol_settings(ProtocolSettings& settings)
 {
     httplib::Client cli("https://webcash.tech");
+    cli.set_read_timeout(60, 0); // 60 seconds
+    cli.set_write_timeout(60, 0); // 60 seconds
     auto r = cli.Get("/api/v1/target");
     if (!r) {
         std::cerr << "Error: returned invalid response to ProtocolSettings request: " << r.error() << std::endl;
@@ -243,6 +245,8 @@ int main(int argc, char **argv)
                 std::cout << "GOT SOLUTION!!! " << preimage << " " << absl::StrCat("0x" + absl::BytesToHexString(absl::string_view((const char*)hash.begin(), 32))) << " " << webcash << std::endl;
 
                 httplib::Client cli("https://webcash.tech");
+		cli.set_read_timeout(60, 0); // 60 seconds
+		cli.set_write_timeout(60, 0); // 60 seconds
                 auto r = cli.Post(
                     "/api/v1/mining_report",
                     absl::StrCat("{\"preimage\": \"", preimage, "\", \"work\": ", work, "}"),
