@@ -1,2 +1,5 @@
 bazel-*
 user.bazelrc
+
+webcash.log
+orphans.log
