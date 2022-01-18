@@ -140,7 +140,9 @@ private:
     {
         EnterCritical(pszName, pszFile, nLine, Base::mutex());
         if (Base::try_lock()) return;
+#if DEBUG
         std::cerr << "lock contention " << pszName << ", " << pszFile << ":" << nLine << std::endl;
+#endif // DEBUG
         Base::lock();
     }
 
