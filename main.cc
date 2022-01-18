@@ -9,6 +9,10 @@
 #include <string>
 #include <vector>
 
+#include <atomic>
+#include <mutex>
+#include <thread>
+
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
 #include "absl/flags/usage.h"
@@ -157,6 +161,73 @@ std::string get_speed_string(int64_t attempts, absl::Time begin, absl::Time end)
     return std::to_string(speed / 1e12f) + " Thps";
 }
 
+std::condition_variable g_update_thread_cv;
+std::atomic<bool> g_shutdown{false};
+
+std::mutex g_state_mutex;
+std::atomic<int> g_difficulty{16};
+std::atomic<int64_t> g_mining_amount{20000};
+std::atomic<int64_t> g_subsidy_amount{1000};
+std::atomic<int64_t> g_attempts{0};
+absl::Time g_last_rng_update{absl::UnixEpoch()};
+absl::Time g_next_rng_update{absl::UnixEpoch()};
+absl::Time g_last_settings_fetch{absl::UnixEpoch()};
+absl::Time g_next_settings_fetch{absl::UnixEpoch()};
+
+void update_thread_func()
+{
+    bool update_rng = true;
+    bool fetch_settings = true;
+
+    while (!g_shutdown) {
+        absl::Time current_time = absl::Now();
+
+        if (update_rng) {
+            update_rng = false;
+            // Gather entropy for RNG
+            RandAddPeriodic();
+            // Schedule next update
+            current_time = absl::Now();
+            g_last_rng_update = current_time;
+            g_next_rng_update = current_time + absl::Minutes(30);
+        }
+
+        if (fetch_settings) {
+            fetch_settings = false;
+            // Fetch updated protocol settings, and report changes + current
+            // hash speed to the user.
+            int64_t attempts = g_attempts.exchange(0);
+            ProtocolSettings settings;
+            if (get_protocol_settings(settings)) {
+                std::cout << "server says"
+                          << " difficulty=" << settings.difficulty
+                          << " ratio=" << settings.ratio
+                          << " speed=" << get_speed_string(attempts, g_last_settings_fetch, current_time)
+                          << std::endl;
+                g_difficulty = settings.difficulty;
+                g_mining_amount = settings.mining_amount;
+                g_subsidy_amount = settings.subsidy_amount;
+                g_attempts = 0;
+            }
+            // Schedule next update
+            current_time = absl::Now();
+            g_last_settings_fetch = current_time;
+            g_next_settings_fetch = current_time + absl::Seconds(5);
+        }
+
+        std::unique_lock<std::mutex> lock(g_state_mutex);
+        g_update_thread_cv.wait_until(lock, absl::ToChronoTime(std::min(g_next_rng_update, g_next_settings_fetch)));
+
+        current_time = absl::Now();
+        if (current_time >= g_next_rng_update) {
+            update_rng = true;
+        }
+        if (current_time >= g_next_settings_fetch) {
+            fetch_settings = true;
+        }
+    }
+}
+
 ABSL_FLAG(std::string, wallet, "wallet.log", "filename to place generated webcash claim codes");
 
 int main(int argc, char **argv)
@@ -185,60 +256,35 @@ int main(int argc, char **argv)
               << " difficulty=" << settings.difficulty
               << " ratio=" << settings.ratio
               << std::endl;
-    absl::Time current_time = absl::Now();
-    absl::Time last_settings_fetch = current_time;
-    absl::Time next_settings_fetch = current_time + absl::Seconds(5);
-    absl::Time last_rng_update = current_time;
-    absl::Time next_rng_update = current_time + absl::Minutes(30);
+    g_difficulty = settings.difficulty;
+    g_mining_amount = settings.mining_amount;
+    g_subsidy_amount = settings.subsidy_amount;
+
+    // Launch thread to update RNG and protocol settings in the background.
+    std::thread update_thread(update_thread_func);
 
     bool done = false;
-    int64_t attempts = 0;
     while (!done) {
-        current_time = absl::Now();
-        if (current_time >= next_settings_fetch) {
-            // Fetch updated protocol settings, and report changes + current
-            // hash speed to the user.
-            if (get_protocol_settings(settings)) {
-                std::cout << "server says"
-                          << " difficulty=" << settings.difficulty
-                          << " ratio=" << settings.ratio
-                          << " speed=" << get_speed_string(attempts, last_settings_fetch, current_time)
-                          << std::endl;
-            }
-            if (current_time > next_rng_update) {
-                // Gather entropy for RNG
-                RandAddPeriodic();
-                // Schedule the next update
-                last_rng_update = current_time;
-                next_rng_update = current_time + absl::Minutes(30);
-            }
-            // Schedule the next settings fetch
-            last_settings_fetch = current_time;
-            next_settings_fetch = current_time + absl::Seconds(5);
-            // Reset hash counter
-            attempts = 0;
-        }
-
         SecretWebcash keep;
-        keep.amount = settings.mining_amount - settings.subsidy_amount;
+        keep.amount = g_mining_amount - g_subsidy_amount;
         GetStrongRandBytes(keep.sk.begin(), 32);
 
         SecretWebcash subsidy;
-        subsidy.amount = settings.subsidy_amount;
+        subsidy.amount = g_subsidy_amount;
         GetStrongRandBytes(subsidy.sk.begin(), 32);
 
         std::string prefix = absl::StrCat("{\"webcash\": [\"", to_string(keep), "\", \"", to_string(subsidy), "\"], \"subsidy\": [\"", to_string(subsidy), "\"], \"nonce\": ");
 
         for (int i = 0; i < 10000; ++i) {
-            ++attempts;
+            ++g_attempts;
 
-            std::string preimage = absl::Base64Escape(absl::StrCat(prefix, to_string(attempts), "}"));
+            std::string preimage = absl::Base64Escape(absl::StrCat(prefix, to_string(i), "}"));
             uint256 hash;
             CSHA256()
                 .Write((unsigned char*)preimage.data(), preimage.size())
                 .Finalize(hash.begin());
 
-            if (!(*(const uint16_t*)hash.begin()) && check_proof_of_work(hash, settings.difficulty)) {
+            if (!(*(const uint16_t*)hash.begin()) && check_proof_of_work(hash, g_difficulty)) {
                 BIGNUM bn;
                 BN_init(&bn);
                 BN_bin2bn((const uint8_t*)hash.begin(), 32, &bn);
@@ -262,7 +308,11 @@ int main(int argc, char **argv)
                 if (r->status != 200) {
                     // server error, or difficulty changed against us
                     std::cerr << "Error: returned invalid response to MiningReport request: status_code=" << r->status << ", text='" << r->body << "'" << std::endl;
-                    next_settings_fetch = current_time;
+                    {
+                        const std::lock_guard<std::mutex> lock(g_state_mutex);
+                        g_next_settings_fetch = absl::Now();
+                    }
+                    g_update_thread_cv.notify_all();
                     continue;
                 }
 
@@ -282,9 +332,9 @@ int main(int argc, char **argv)
                 const UniValue& difficulty = o["difficulty_target"];
                 if (difficulty.isNum()) {
                     int bits = difficulty.get_int();
-                    if (bits != settings.difficulty) {
+                    int old_bits = g_difficulty.exchange(bits);
+                    if (bits != old_bits) {
                         std::cout << "Difficulty adjustment occured! Server says difficulty=" << bits << std::endl;
-                        settings.difficulty = bits;
                     }
                 }
             }
