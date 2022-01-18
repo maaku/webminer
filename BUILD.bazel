@@ -59,6 +59,7 @@ cc_library(
 cc_library(
     name = "sha2",
     copts = [
+        "-msse4",
         "-msse4.1",
         "-mavx2",
     ],
