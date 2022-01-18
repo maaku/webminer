@@ -377,8 +377,7 @@ void mining_thread_func(int id)
 
                 // Generate new Webcash secrets, so that we don't reuse a secret
                 // if we happen to generate two solutions back-to-back.
-                GetStrongRandBytes(keep.sk.begin(), 32);
-                GetStrongRandBytes(subsidy.sk.begin(), 32);
+                break;
             }
         }
     }
