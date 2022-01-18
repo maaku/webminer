@@ -246,7 +246,6 @@ void update_thread_func()
                 g_difficulty = settings.difficulty;
                 g_mining_amount = settings.mining_amount;
                 g_subsidy_amount = settings.subsidy_amount;
-                g_attempts = 0;
             }
             // Schedule next update
             current_time = absl::Now();
