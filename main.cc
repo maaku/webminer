@@ -337,52 +337,9 @@ void update_thread_func()
     }
 }
 
-int main(int argc, char **argv)
+void mining_thread_func(int id)
 {
     using std::to_string;
-
-    absl::SetProgramUsageMessage(absl::StrCat("Webcash mining daemon.\n", argv[0]));
-    absl::ParseCommandLine(argc, argv);
-    {
-        // Touch the wallet file, which will create it if it doesn't
-        // already exist.  The file locking primitives assume that the
-        // file exists, so we need to create here first.  It also allows
-        // the user to see the file even before a successful
-        // proof-of-work solution has been found.
-        std::ofstream webcash_log(absl::GetFlag(FLAGS_webcashlog), std::ofstream::app);
-        webcash_log.flush();
-    }
-    {
-        // Do the same for the orphan log as well.
-        std::ofstream orphan_log(absl::GetFlag(FLAGS_orphanlog), std::ofstream::app);
-        orphan_log.flush();
-    }
-
-    RandomInit();
-    if (!Random_SanityCheck()) {
-        std::cerr << "Error: RNG sanity check failed. RNG is not secure." << std::endl;
-        return 1;
-    }
-
-    const std::string algo = SHA256AutoDetect();
-    std::cout << "Using SHA256 algorithm '" << algo << "'." << std::endl;
-
-    ProtocolSettings settings;
-    if (!get_protocol_settings(settings)) {
-        std::cerr << "Error: could not fetch protocol settings from server; exiting" << std::endl;
-        return 1;
-    }
-    std::cout << "server says"
-              << " difficulty=" << settings.difficulty
-              << " ratio=" << settings.ratio
-              << std::endl;
-    g_difficulty = settings.difficulty;
-    g_mining_amount = settings.mining_amount;
-    g_subsidy_amount = settings.subsidy_amount;
-
-    // Launch thread to update RNG and protocol settings, and to
-    // submit work in the background.
-    std::thread update_thread(update_thread_func);
 
     bool done = false;
     while (!done) {
@@ -424,6 +381,86 @@ int main(int argc, char **argv)
             }
         }
     }
+
+}
+
+ABSL_FLAG(unsigned, workers, 0, "number of mining threads to spawn");
+
+int main(int argc, char **argv)
+{
+    absl::SetProgramUsageMessage(absl::StrCat("Webcash mining daemon.\n", argv[0]));
+    absl::ParseCommandLine(argc, argv);
+    int num_workers = absl::GetFlag(FLAGS_workers);
+    if (num_workers > 256) {
+        std::cerr << "Error: --workers cannot be larger than 256" << std::endl;
+        return 1;
+    }
+    if (num_workers == 0) {
+        num_workers = std::thread::hardware_concurrency();
+        if (num_workers != 0) {
+            std::cout << "Auto-detected the hardware concurrency to be " << num_workers << std::endl;
+        } else {
+            std::cout << "Could not auto-detect the hardware concurrency; assuming a value of 1" << std::endl;
+            num_workers = 1;
+        }
+    }
+    {
+        // Touch the wallet file, which will create it if it doesn't
+        // already exist.  The file locking primitives assume that the
+        // file exists, so we need to create here first.  It also allows
+        // the user to see the file even before a successful
+        // proof-of-work solution has been found.
+        std::ofstream webcash_log(absl::GetFlag(FLAGS_webcashlog), std::ofstream::app);
+        webcash_log.flush();
+    }
+    {
+        // Do the same for the orphan log as well.
+        std::ofstream orphan_log(absl::GetFlag(FLAGS_orphanlog), std::ofstream::app);
+        orphan_log.flush();
+    }
+
+    RandomInit();
+    if (!Random_SanityCheck()) {
+        std::cerr << "Error: RNG sanity check failed. RNG is not secure." << std::endl;
+        return 1;
+    }
+
+    const std::string algo = SHA256AutoDetect();
+    std::cout << "Using SHA256 algorithm '" << algo << "'." << std::endl;
+
+    ProtocolSettings settings;
+    if (!get_protocol_settings(settings)) {
+        std::cerr << "Error: could not fetch protocol settings from server; exiting" << std::endl;
+        return 1;
+    }
+    std::cout << "server says"
+              << " difficulty=" << settings.difficulty
+              << " ratio=" << settings.ratio
+              << std::endl;
+    g_difficulty = settings.difficulty;
+    g_mining_amount = settings.mining_amount;
+    g_subsidy_amount = settings.subsidy_amount;
+
+    // Launch thread to update RNG and protocol settings, and to
+    // submit work in the background.
+    std::thread update_thread(update_thread_func);
+
+    // Launch worker threads
+    std::vector<std::thread> mining_threads;
+    mining_threads.reserve(num_workers);
+    std::cout << "Spawning " << num_workers << " worker threads" << std::endl;
+    for (int i = 0; i < num_workers; ++i) {
+        mining_threads.emplace_back(mining_thread_func, i);
+    }
+
+    // Wait for mining threads to exit
+    while (!mining_threads.empty()) {
+        mining_threads.back().join();
+        mining_threads.pop_back();
+    }
+
+    // Wait for server communication thread to finish
+    update_thread.join();
 
     return 0;
 }
