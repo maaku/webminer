@@ -60,9 +60,11 @@ cc_library(
     name = "sha2",
     copts = [
         "-msse4.1",
+        "-mavx2",
     ],
     defines = [
         "ENABLE_SSE41",
+        "ENABLE_AVX2",
         "USE_ASM",
     ],
     hdrs = [
@@ -73,6 +75,7 @@ cc_library(
         "crypto/sha256.cc",
         "crypto/sha256_sse4.cc",
         "crypto/sha256_sse41.cc",
+        "crypto/sha256_avx2.cc",
         "crypto/sha512.cc",
     ],
     deps = [
