@@ -4,6 +4,12 @@ An experimental vector-accelerated CPU miner for the Webcash electronic payment 
 
 Webminer is tested and known to work on recent versions of macOS and Linux.  It is written in a platform-independent style and is likely to work on other operating systems as well.  If you need to make modifications to get it to run in your environment, please consider submitting a pull request on the GitHub repo: https://github.com/maaku/webminer
 
+# Performance
+
+Unlike the official Webcash miner which is written in unoptimized Python, webminer is written in hand-tuned C++ and uses x86 vector SIMD extensions to accelerate SHA256 calculations.  On this author's Intel CPU the official Python miner is able to achieve approximately 31.67 khps.  A single-threaded webmine instance on the same machine is able to mine approximately 416.28 khps, for a total speedup of over 13x.
+
+Furhter optimizations are possible, and will be implemented in time.
+
 # Compiling
 
 To compile webminer, you need Google's bazel build tool.  Instructions for installing bazel are available at the official bazel website: https://bazel.build
