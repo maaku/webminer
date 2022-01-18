@@ -351,7 +351,8 @@ void mining_thread_func(int id)
         subsidy.amount = g_subsidy_amount;
         GetStrongRandBytes(subsidy.sk.begin(), 32);
 
-        std::string prefix = absl::StrCat("{\"webcash\": [\"", to_string(keep), "\", \"", to_string(subsidy), "\"], \"subsidy\": [\"", to_string(subsidy), "\"], \"nonce\": ");
+        std::string subsidy_str = to_string(subsidy);
+        std::string prefix = absl::StrCat("{\"webcash\": [\"", to_string(keep), "\", \"", subsidy_str, "\"], \"subsidy\": [\"", subsidy_str, "\"], \"nonce\": ");
 
         for (int i = 0; i < 10000; ++i) {
             ++g_attempts;
