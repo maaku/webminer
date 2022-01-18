@@ -237,6 +237,15 @@ int main(int argc, char **argv)
     absl::SetProgramUsageMessage(absl::StrCat("Webcash mining daemon.\n", argv[0]));
     absl::ParseCommandLine(argc, argv);
     const std::string wallet_filename = absl::GetFlag(FLAGS_wallet);
+    {
+        // Touch the wallet file, which will create it if it doesn't
+        // already exist.  The file locking primitives assume that the
+        // file exists, so we need to create here first.  It also allows
+        // the user to see the file even before a successful
+        // proof-of-work solution has been found.
+        std::ofstream wallet_log(wallet_filename, std::ofstream::app);
+        wallet_log.flush();
+    }
 
     RandomInit();
     if (!Random_SanityCheck()) {
