@@ -6,6 +6,7 @@
 
 #include <iostream>
 
+#include <deque>
 #include <string>
 #include <vector>
 
@@ -148,6 +149,27 @@ bool check_proof_of_work(const uint256& hash, int difficulty)
     return true;
 }
 
+int get_apparent_difficulty(const uint256& hash)
+{
+    int bits = 0;
+    for (int i = 0; i < 32; ++i) {
+        const unsigned char c = hash.begin()[i];
+        if (c == 0x00) {
+            bits += 8;
+            continue;
+        }
+        if (c == 0x01) return bits + 7;
+        if (c <= 0x03) return bits + 6;
+        if (c <= 0x07) return bits + 5;
+        if (c <= 0x0f) return bits + 4;
+        if (c <= 0x1f) return bits + 3;
+        if (c <= 0x3f) return bits + 2;
+        if (c <= 0x7f) return bits + 1;
+        break;
+    }
+    return bits;
+}
+
 std::string get_speed_string(int64_t attempts, absl::Time begin, absl::Time end) {
     float speed = attempts / absl::ToDoubleSeconds(end - begin);
     if (speed < 2e3f)
@@ -164,7 +186,18 @@ std::string get_speed_string(int64_t attempts, absl::Time begin, absl::Time end)
 std::condition_variable g_update_thread_cv;
 std::atomic<bool> g_shutdown{false};
 
+struct Solution
+{
+    uint256 hash;
+    std::string preimage;
+    std::string webcash;
+
+    Solution() = default;
+    Solution(const uint256& hashIn, const std::string& preimageIn, const std::string& webcashIn) : hash(hashIn), preimage(preimageIn), webcash(webcashIn) {}
+};
+
 std::mutex g_state_mutex;
+std::deque<Solution> g_solutions;
 std::atomic<int> g_difficulty{16};
 std::atomic<int64_t> g_mining_amount{20000};
 std::atomic<int64_t> g_subsidy_amount{1000};
@@ -174,8 +207,14 @@ absl::Time g_next_rng_update{absl::UnixEpoch()};
 absl::Time g_last_settings_fetch{absl::UnixEpoch()};
 absl::Time g_next_settings_fetch{absl::UnixEpoch()};
 
+ABSL_FLAG(std::string, webcashlog, "webcash.log", "filename to place generated webcash claim codes");
+ABSL_FLAG(std::string, orphanlog, "orphans.log", "filename to place solved proof-of-works the server rejects, and their associated webcash claim codes");
+
 void update_thread_func()
 {
+    const std::string webcash_log_filename = absl::GetFlag(FLAGS_webcashlog);
+    const std::string orphan_log_filename = absl::GetFlag(FLAGS_orphanlog);
+
     bool update_rng = true;
     bool fetch_settings = true;
 
@@ -215,6 +254,76 @@ void update_thread_func()
             g_next_settings_fetch = current_time + absl::Seconds(5);
         }
 
+        while (true) {
+            // Fetch a solved proof-of-work in FIFO order
+            Solution soln;
+            {
+                const std::lock_guard<std::mutex> lock(g_state_mutex);
+                if (g_solutions.empty()) {
+                    break;
+                }
+                soln = std::move(g_solutions.front());
+                g_solutions.pop_front();
+            }
+
+            // Convert hash to decimal notation
+            BIGNUM bn;
+            BN_init(&bn);
+            BN_bin2bn((const uint8_t*)soln.hash.begin(), 32, &bn);
+            char* work = BN_bn2dec(&bn);
+            BN_free(&bn);
+
+            // Submit the solved proof-of-work
+            httplib::Client cli("https://webcash.tech");
+            cli.set_read_timeout(60, 0); // 60 seconds
+            cli.set_write_timeout(60, 0); // 60 seconds
+            auto r = cli.Post(
+                "/api/v1/mining_report",
+                absl::StrCat("{\"preimage\": \"", soln.preimage, "\", \"work\": ", work, "}"),
+                "application/json");
+
+            // Handle network errors by aborting further processing
+            if (!r) {
+                std::cerr << "Error: returned invalid response to MiningReport request: " << r.error() << std::endl;
+                std::cerr << "Possible transient error, or server timeout?  Waiting to re-attempt.";
+                const std::lock_guard<std::mutex> lock(g_state_mutex);
+                g_solutions.push_front(soln);
+                break;
+            }
+
+            // Handle server rejection by saving the proof-of-work
+            // solution to the orphan log.
+            if (r->status != 200) {
+                // server error, or difficulty changed against us
+                std::cerr << "Error: returned invalid response to MiningReport request: status_code=" << r->status << ", text='" << r->body << "'" << std::endl;
+                g_next_settings_fetch = absl::Now();
+                // Save the solution to the orphan log
+                std::ofstream orphan_log(orphan_log_filename, std::ofstream::app);
+                orphan_log << soln.preimage << ' ' << absl::BytesToHexString(absl::string_view((const char*)soln.hash.begin(), 32)) << ' ' << soln.webcash << " difficulty=" << get_apparent_difficulty(soln.hash) << std::endl;
+                orphan_log.flush();
+                continue;
+            }
+
+            // Save the successfully submitted webcash to the log
+            {
+                std::ofstream webcash_log(webcash_log_filename, std::ofstream::app);
+                webcash_log << soln.webcash << std::endl;
+                webcash_log.flush();
+            }
+
+            // Update difficulty
+            UniValue o;
+            o.read(r->body);
+            const UniValue& difficulty = o["difficulty_target"];
+            if (difficulty.isNum()) {
+                int bits = difficulty.get_int();
+                int old_bits = g_difficulty.exchange(bits);
+                if (bits != old_bits) {
+                    std::cout << "Difficulty adjustment occured! Server says difficulty=" << bits << std::endl;
+                }
+            }
+        }
+
         std::unique_lock<std::mutex> lock(g_state_mutex);
         g_update_thread_cv.wait_until(lock, absl::ToChronoTime(std::min(g_next_rng_update, g_next_settings_fetch)));
 
@@ -228,23 +337,25 @@ void update_thread_func()
     }
 }
 
-ABSL_FLAG(std::string, webcashlog, "webcash.log", "filename to place generated webcash claim codes");
-
 int main(int argc, char **argv)
 {
     using std::to_string;
 
     absl::SetProgramUsageMessage(absl::StrCat("Webcash mining daemon.\n", argv[0]));
     absl::ParseCommandLine(argc, argv);
-    const std::string webcash_log_filename = absl::GetFlag(FLAGS_webcashlog);
     {
         // Touch the wallet file, which will create it if it doesn't
         // already exist.  The file locking primitives assume that the
         // file exists, so we need to create here first.  It also allows
         // the user to see the file even before a successful
         // proof-of-work solution has been found.
-        std::ofstream webcash_log(webcash_log_filename, std::ofstream::app);
+        std::ofstream webcash_log(absl::GetFlag(FLAGS_webcashlog), std::ofstream::app);
         webcash_log.flush();
+    }
+    {
+        // Do the same for the orphan log as well.
+        std::ofstream orphan_log(absl::GetFlag(FLAGS_orphanlog), std::ofstream::app);
+        orphan_log.flush();
     }
 
     RandomInit();
@@ -269,7 +380,8 @@ int main(int argc, char **argv)
     g_mining_amount = settings.mining_amount;
     g_subsidy_amount = settings.subsidy_amount;
 
-    // Launch thread to update RNG and protocol settings in the background.
+    // Launch thread to update RNG and protocol settings, and to
+    // submit work in the background.
     std::thread update_thread(update_thread_func);
 
     bool done = false;
@@ -294,58 +406,21 @@ int main(int argc, char **argv)
                 .Finalize(hash.begin());
 
             if (!(*(const uint16_t*)hash.begin()) && check_proof_of_work(hash, g_difficulty)) {
-                BIGNUM bn;
-                BN_init(&bn);
-                BN_bin2bn((const uint8_t*)hash.begin(), 32, &bn);
-                char* work = BN_bn2dec(&bn);
-                BN_free(&bn);
-
                 std::string webcash = to_string(keep);
                 std::cout << "GOT SOLUTION!!! " << preimage << " " << absl::StrCat("0x" + absl::BytesToHexString(absl::string_view((const char*)hash.begin(), 32))) << " " << webcash << std::endl;
 
-                httplib::Client cli("https://webcash.tech");
-                cli.set_read_timeout(60, 0); // 60 seconds
-                cli.set_write_timeout(60, 0); // 60 seconds
-                auto r = cli.Post(
-                    "/api/v1/mining_report",
-                    absl::StrCat("{\"preimage\": \"", preimage, "\", \"work\": ", work, "}"),
-                    "application/json");
-                if (!r) {
-                    std::cerr << "Error: returned invalid response to MiningReport request: " << r.error() << std::endl;
-                    continue;
-                }
-                if (r->status != 200) {
-                    // server error, or difficulty changed against us
-                    std::cerr << "Error: returned invalid response to MiningReport request: status_code=" << r->status << ", text='" << r->body << "'" << std::endl;
-                    {
-                        const std::lock_guard<std::mutex> lock(g_state_mutex);
-                        g_next_settings_fetch = absl::Now();
-                    }
-                    g_update_thread_cv.notify_all();
-                    continue;
-                }
-
+                // Add solution to the queue, and wake up the server
+                // communication thread.
                 {
-                    std::ofstream webcash_log(webcash_log_filename, std::ofstream::app);
-                    webcash_log << webcash << std::endl;
-                    webcash_log.flush();
+                    const std::lock_guard<std::mutex> lock(g_state_mutex);
+                    g_solutions.emplace_back(hash, preimage, webcash);
                 }
+                g_update_thread_cv.notify_all();
 
                 // Generate new Webcash secrets, so that we don't reuse a secret
                 // if we happen to generate two solutions back-to-back.
                 GetStrongRandBytes(keep.sk.begin(), 32);
                 GetStrongRandBytes(subsidy.sk.begin(), 32);
-
-                UniValue o;
-                o.read(r->body);
-                const UniValue& difficulty = o["difficulty_target"];
-                if (difficulty.isNum()) {
-                    int bits = difficulty.get_int();
-                    int old_bits = g_difficulty.exchange(bits);
-                    if (bits != old_bits) {
-                        std::cout << "Difficulty adjustment occured! Server says difficulty=" << bits << std::endl;
-                    }
-                }
             }
         }
     }
