@@ -6,6 +6,21 @@
 
 load("@rules_cc//cc:defs.bzl", "cc_library")
 
+# cross-compile settings
+config_setting(
+    name = "armv7hf",
+    values = {
+        "cpu": "armeabi-v7a",
+    },
+)
+
+config_setting(
+    name = "aarch64",
+    values = {
+        "cpu": "aarch64-linux-gnu",
+    },
+)
+
 cc_library(
     name = "common",
     hdrs = [
@@ -58,18 +73,30 @@ cc_library(
 
 cc_library(
     name = "sha2",
-    copts = [
-        "-msse4",
-        "-msse4.1",
-        "-mavx2",
-        "-msha",
-    ],
-    defines = [
-        "ENABLE_SSE41",
-        "ENABLE_AVX2",
-        "ENABLE_SHANI",
-        "USE_ASM",
-    ],
+    copts = select({
+        ":aarch64": [],
+        ":armv7hf": [],
+        # assume x86_64 as default
+        "//conditions:default": [
+            "-msse4",
+            "-msse4.1",
+            "-mavx2",
+            "-msha",
+        ],
+    }),
+    defines = select({
+        ":aarch64": [
+            "USE_ASM",
+        ],
+        ":armv7hf": [],
+        # assume x86_64 as default
+        "//conditions:default": [
+            "USE_ASM",
+            "ENABLE_SSE41",
+            "ENABLE_AVX2",
+            "ENABLE_SHANI",
+        ],
+    }),
     hdrs = [
         "crypto/sha256.h",
         "crypto/sha512.h",
@@ -148,6 +175,13 @@ configure_make(
     name = "univalue",
     configure_in_place = True, # Required by autogen=True
     autogen = True,
+    configure_options = select({
+        ":aarch64": [
+            "--host=aarch64-linux-gnu",
+        ],
+        # assume x86_64 as default
+        "//conditions:default": [],
+    }),
     env = {
         "AR": "",
     },

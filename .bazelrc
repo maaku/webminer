@@ -1,0 +1,11 @@
+build:amd64 --platforms=@local_config_platform//:host
+
+build:arm_crosstool --crosstool_top=@murtis_bazel_compilers//compilers/arm_compiler:toolchain
+build:arm_crosstool --host_crosstool_top=@bazel_tools//tools/cpp:toolchain
+build:arm_crosstool --spawn_strategy=standalone
+
+build:armv7hf --config=arm_crosstool
+build:armv7hf --cpu=armeabi-v7a --compiler=gcc
+
+build:aarch64 --config=arm_crosstool
+build:aarch64 --cpu=aarch64-linux-gnu --compiler=gcc

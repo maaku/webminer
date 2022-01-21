@@ -65,4 +65,17 @@ http_archive(
     sha256 = "50a4e306c782c77b84dee5c53049c0a072e1973d6bb76141cf41cec6ae57649f",
 )
 
+# cross-compiler for arm/arm64
+http_archive(
+    name = "murtis_bazel_compilers",
+    urls = [
+      "https://github.com/curtismuntz/bazel_compilers/archive/e7c3ee9820bfde7f7284bbc3a9540293741719cd.tar.gz",
+    ],
+    strip_prefix = "bazel_compilers-e7c3ee9820bfde7f7284bbc3a9540293741719cd",
+)
+
+load("@murtis_bazel_compilers//compilers:dependencies.bzl", "cross_compiler_dependencies")
+
+cross_compiler_dependencies()
+
 # End of File
