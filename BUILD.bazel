@@ -95,6 +95,16 @@ cc_library(
 )
 
 cc_library(
+    name = "sqlite3",
+    hdrs = [
+        "sqlite3.h",
+    ],
+    srcs = [
+        "sqlite3.c",
+    ],
+)
+
+cc_library(
     name = "sync",
     hdrs = [
         "sync.h",
