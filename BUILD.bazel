@@ -8,6 +8,10 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 
 cc_library(
     name = "common",
+    defines = select({
+        "@bazel_tools//src/conditions:windows": ["WIN32"],
+        "//conditions:default": [],
+    }),
     hdrs = [
         "compat/byteswap.h",
         "compat/cpuid.h",
@@ -39,6 +43,10 @@ cc_library(
 
 cc_library(
     name = "random",
+    defines = select({
+        "@bazel_tools//src/conditions:windows": ["WIN32"],
+        "//conditions:default": [],
+    }),
     hdrs = [
         "random.h",
         "randomenv.h",
