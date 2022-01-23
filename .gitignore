@@ -1,5 +1,7 @@
 bazel-*
 user.bazelrc
 
+.vscode/
+
 webcash.log
 orphans.log
