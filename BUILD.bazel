@@ -76,10 +76,12 @@ cc_library(
         "//conditions:default": [],
     }),
     hdrs = [
+        "crypto/hmac_sha512.h",
         "crypto/sha256.h",
         "crypto/sha512.h",
     ],
     srcs = [
+        "crypto/hmac_sha512.cc",
         "crypto/sha256.cc",
         "crypto/sha256_sse4.cc",
         "crypto/sha256_sse41.cc",
