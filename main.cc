@@ -35,6 +35,7 @@
 #include "crypto/sha256.h"
 #include "random.h"
 #include "uint256.h"
+#include "wallet.h"
 
 struct ProtocolSettings {
     // The amount the miner is allowed to claim.
@@ -89,42 +90,6 @@ bool get_protocol_settings(ProtocolSettings& settings)
     settings.mining_amount = mining_amount.get_int64();
     settings.subsidy_amount = subsidy_amount.get_int64();
     return true;
-}
-
-struct SecretWebcash {
-    uint256 sk;
-    int64_t amount;
-};
-
-static std::string webcash_string(int64_t amount, const absl::string_view& type, const uint256& hash)
-{
-    if (amount < 0) {
-        amount = 0;
-    }
-    return absl::StrCat("e", std::to_string(amount), ":", type, ":", absl::BytesToHexString(absl::string_view((const char*)hash.data(), hash.size())));
-}
-
-std::string to_string(const SecretWebcash& esk)
-{
-    return webcash_string(esk.amount, "secret", esk.sk);
-}
-
-struct PublicWebcash {
-    uint256 pk;
-    int64_t amount;
-
-    PublicWebcash(const SecretWebcash& esk)
-        : amount(esk.amount)
-    {
-        CSHA256()
-            .Write(esk.sk.data(), esk.sk.size())
-            .Finalize(pk.data());
-    }
-};
-
-std::string to_string(const PublicWebcash& epk)
-{
-    return webcash_string(epk.amount, "public", epk.pk);
 }
 
 bool check_proof_of_work(const uint256& hash, int difficulty)

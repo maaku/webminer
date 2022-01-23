@@ -131,6 +131,21 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "wallet",
+    hdrs = [
+        "wallet.h",
+    ],
+    srcs = [
+        "wallet.cc",
+    ],
+    deps = [
+        "@com_google_absl//absl/strings:strings",
+        ":sha2",
+        ":uint256",
+    ]
+)
+
 load("@rules_cc//cc:defs.bzl", "cc_binary")
 
 cc_binary(
@@ -145,6 +160,7 @@ cc_binary(
         ":sha2",
         ":uint256",
         ":univalue",
+        ":wallet",
     ],
 )
 
