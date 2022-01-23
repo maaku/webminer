@@ -9,7 +9,7 @@
 // Written and placed in public domain by Jeffrey Walton.
 // Based on code from Intel, and by Sean Gulley for the miTLS project.
 
-#ifdef ENABLE_SHANI
+#if defined(__x86_64__) || defined(__amd64__)
 
 #include <stdint.h>
 #include <immintrin.h>
