@@ -8,10 +8,9 @@
 
 #include <stdint.h>
 
+#include <filesystem>
 #include <mutex>
 #include <string>
-
-#include <boost/filesystem.hpp>
 
 #include "crypto/sha256.h"
 #include "sqlite3.h"
@@ -43,11 +42,11 @@ class Wallet {
 protected:
     std::mutex m_mut;
 
-    boost::filesystem::path m_logfile;
+    std::filesystem::path m_logfile;
     sqlite3* m_db;
 
 public:
-    Wallet(const boost::filesystem::path& path);
+    Wallet(const std::filesystem::path& path);
     ~Wallet();
 
     bool Insert(const SecretWebcash& sk);

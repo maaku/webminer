@@ -8,6 +8,8 @@
 
 #include "random.h"
 
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
 
@@ -16,9 +18,6 @@
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-
-#include "boost/filesystem.hpp"
-#include "boost/filesystem/fstream.hpp"
 
 static std::string webcash_string(int64_t amount, const absl::string_view& type, const uint256& hash)
 {
@@ -38,7 +37,7 @@ std::string to_string(const PublicWebcash& epk)
     return webcash_string(epk.amount, "public", epk.pk);
 }
 
-Wallet::Wallet(const boost::filesystem::path& path)
+Wallet::Wallet(const std::filesystem::path& path)
     : m_logfile(path)
 {
     // The caller can either give the path to one of the wallet files (the
@@ -46,7 +45,7 @@ Wallet::Wallet(const boost::filesystem::path& path)
     // these files.
     m_logfile.replace_extension(".bak");
 
-    boost::filesystem::path dbfile(path);
+    std::filesystem::path dbfile(path);
     dbfile.replace_extension(".db");
     int error = sqlite3_open_v2(dbfile.c_str(), &m_db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX | SQLITE_OPEN_EXRESCODE, nullptr);
     if (error != SQLITE_OK) {
@@ -61,7 +60,7 @@ Wallet::Wallet(const boost::filesystem::path& path)
         // This operation isn't protected by a filesystem lock, but that
         // shouldn't be an issue because it doesn't do anything else the file
         // didn't exist in the first place.
-        boost::filesystem::ofstream bak(m_logfile, std::ofstream::app);
+        std::ofstream bak(m_logfile, std::ofstream::app);
         bak.flush();
     }
 }
