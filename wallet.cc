@@ -61,6 +61,9 @@ Wallet::Wallet(const std::filesystem::path& path)
         // shouldn't be an issue because it doesn't do anything else the file
         // didn't exist in the first place.
         std::ofstream bak(m_logfile, std::ofstream::app);
+        if (!bak) {
+            throw std::runtime_error(absl::StrCat("Unable to open/create wallet recovery file"));
+        }
         bak.flush();
     }
 }
