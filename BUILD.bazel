@@ -140,7 +140,6 @@ cc_library(
         "wallet.cc",
     ],
     deps = [
-        "@boost//:filesystem",
         "@com_google_absl//absl/strings:strings",
         ":random",
         ":sha2",
