@@ -14,6 +14,16 @@ git_repository(
     shallow_since = "1635953174 -0400",
 )
 
+# boost libraries
+git_repository(
+    name = "com_github_nelhage_rules_boost",
+    remote = "https://github.com/nelhage/rules_boost",
+    commit = "685557254da7ee57afc1204189b58253972e16be",
+    shallow_since = "1642479500 -0800",
+)
+load("@com_github_nelhage_rules_boost//:boost/boost.bzl", "boost_deps")
+boost_deps()
+
 # boringssl source code repository
 git_repository(
     name = "boringssl",

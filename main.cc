@@ -155,13 +155,14 @@ struct Solution
 {
     uint256 hash;
     std::string preimage;
-    std::string webcash;
+    SecretWebcash webcash;
 
     Solution() = default;
-    Solution(const uint256& hashIn, const std::string& preimageIn, const std::string& webcashIn) : hash(hashIn), preimage(preimageIn), webcash(webcashIn) {}
+    Solution(const uint256& hashIn, const std::string& preimageIn, const SecretWebcash& webcashIn) : hash(hashIn), preimage(preimageIn), webcash(webcashIn) {}
 };
 
 std::mutex g_state_mutex;
+std::unique_ptr<Wallet> g_wallet;
 std::deque<Solution> g_solutions;
 std::atomic<int> g_difficulty{16};
 std::atomic<int64_t> g_mining_amount{20000};
@@ -174,9 +175,12 @@ absl::Time g_next_settings_fetch{absl::UnixEpoch()};
 
 ABSL_FLAG(std::string, webcashlog, "webcash.log", "filename to place generated webcash claim codes");
 ABSL_FLAG(std::string, orphanlog, "orphans.log", "filename to place solved proof-of-works the server rejects, and their associated webcash claim codes");
+ABSL_FLAG(std::string, walletfile, "default_wallet", "base filename of wallet files");
 
 void update_thread_func()
 {
+    using std::to_string;
+
     const std::string webcash_log_filename = absl::GetFlag(FLAGS_webcashlog);
     const std::string orphan_log_filename = absl::GetFlag(FLAGS_orphanlog);
 
@@ -263,16 +267,9 @@ void update_thread_func()
                 g_next_settings_fetch = absl::Now();
                 // Save the solution to the orphan log
                 std::ofstream orphan_log(orphan_log_filename, std::ofstream::app);
-                orphan_log << soln.preimage << ' ' << absl::BytesToHexString(absl::string_view((const char*)soln.hash.begin(), 32)) << ' ' << soln.webcash << " difficulty=" << get_apparent_difficulty(soln.hash) << std::endl;
+                orphan_log << soln.preimage << ' ' << absl::BytesToHexString(absl::string_view((const char*)soln.hash.begin(), 32)) << ' ' << to_string(soln.webcash) << " difficulty=" << get_apparent_difficulty(soln.hash) << std::endl;
                 orphan_log.flush();
                 continue;
-            }
-
-            // Save the successfully submitted webcash to the log
-            {
-                std::ofstream webcash_log(webcash_log_filename, std::ofstream::app);
-                webcash_log << soln.webcash << std::endl;
-                webcash_log.flush();
             }
 
             // Update difficulty
@@ -285,6 +282,15 @@ void update_thread_func()
                 if (bits != old_bits) {
                     std::cout << "Difficulty adjustment occured! Server says difficulty=" << bits << std::endl;
                 }
+            }
+
+            // Claim the coin with our wallet
+            if (!g_wallet->Insert(soln.webcash)) {
+                // Save the successfully submitted webcash to the log, since we
+                // were unable to add it to the wallet.
+                std::ofstream webcash_log(webcash_log_filename, std::ofstream::app);
+                webcash_log << to_string(soln.webcash) << std::endl;
+                webcash_log.flush();
             }
         }
 
@@ -328,14 +334,13 @@ void mining_thread_func(int id)
                 .Finalize(hash.begin());
 
             if (!(*(const uint16_t*)hash.begin()) && check_proof_of_work(hash, g_difficulty)) {
-                std::string webcash = to_string(keep);
-                std::cout << "GOT SOLUTION!!! " << preimage << " " << absl::StrCat("0x" + absl::BytesToHexString(absl::string_view((const char*)hash.begin(), 32))) << " " << webcash << std::endl;
+                std::cout << "GOT SOLUTION!!! " << preimage << " " << absl::StrCat("0x" + absl::BytesToHexString(absl::string_view((const char*)hash.begin(), 32))) << " " << to_string(keep) << std::endl;
 
                 // Add solution to the queue, and wake up the server
                 // communication thread.
                 {
                     const std::lock_guard<std::mutex> lock(g_state_mutex);
-                    g_solutions.emplace_back(hash, preimage, webcash);
+                    g_solutions.emplace_back(hash, preimage, keep);
                 }
                 g_update_thread_cv.notify_all();
 
@@ -381,6 +386,14 @@ int main(int argc, char **argv)
         // Do the same for the orphan log as well.
         std::ofstream orphan_log(absl::GetFlag(FLAGS_orphanlog), std::ofstream::app);
         orphan_log.flush();
+    }
+
+    // Open the wallet file, which will throw an error if the walletfile
+    // parameter is unusable.
+    g_wallet = std::unique_ptr<Wallet>(new Wallet(absl::GetFlag(FLAGS_walletfile)));
+    if (!g_wallet) {
+        std::cerr << "Error: Unable to open wallet." << std::endl;
+        return 1;
     }
 
     RandomInit();

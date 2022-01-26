@@ -8,9 +8,13 @@
 
 #include <stdint.h>
 
+#include <mutex>
 #include <string>
 
+#include <boost/filesystem.hpp>
+
 #include "crypto/sha256.h"
+#include "sqlite3.h"
 #include "uint256.h"
 
 struct SecretWebcash {
@@ -34,6 +38,20 @@ struct PublicWebcash {
 };
 
 std::string to_string(const PublicWebcash& epk);
+
+class Wallet {
+protected:
+    std::mutex m_mut;
+
+    boost::filesystem::path m_logfile;
+    sqlite3* m_db;
+
+public:
+    Wallet(const boost::filesystem::path& path);
+    ~Wallet();
+
+    bool Insert(const SecretWebcash& sk);
+};
 
 #endif // WALLET_H
 
