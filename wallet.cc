@@ -19,6 +19,8 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 
+#include "sqlite3.h"
+
 static std::string webcash_string(int64_t amount, const absl::string_view& type, const uint256& hash)
 {
     if (amount < 0) {
