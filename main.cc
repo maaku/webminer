@@ -250,7 +250,7 @@ void update_thread_func()
             // Schedule next update
             current_time = absl::Now();
             g_last_settings_fetch = current_time;
-            g_next_settings_fetch = current_time + absl::Seconds(5);
+            g_next_settings_fetch = current_time + absl::Seconds(15);
         }
 
         while (true) {
