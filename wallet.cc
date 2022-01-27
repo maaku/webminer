@@ -19,6 +19,8 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 
+#include "boost/interprocess/sync/file_lock.hpp"
+
 #include "sqlite3.h"
 
 static std::string webcash_string(int64_t amount, const absl::string_view& type, const uint256& hash)
@@ -49,8 +51,23 @@ Wallet::Wallet(const std::filesystem::path& path)
 
     std::filesystem::path dbfile(path);
     dbfile.replace_extension(".db");
+    // Create the database file if it doesn't exist already, so that we can use
+    // inter-process file locking primitives on it.  Note that an empty file is
+    // a valid, albeit empty sqlite3 database.
+    {
+        std::ofstream db(dbfile, std::ofstream::app);
+        db.flush();
+    }
+    m_db_lock = boost::interprocess::file_lock(dbfile.c_str());
+    if (!m_db_lock.try_lock()) {
+        std::string msg("Unable to lock wallet database; wallet is in use by another process.");
+        std::cerr << msg << std::endl;
+        throw std::runtime_error(msg);
+    }
+
     int error = sqlite3_open_v2(dbfile.c_str(), &m_db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX | SQLITE_OPEN_EXRESCODE, nullptr);
     if (error != SQLITE_OK) {
+        m_db_lock.unlock();
         std::string msg(absl::StrCat("Unable to open/create wallet database file: ", sqlite3_errstr(error), " (", std::to_string(error), ")"));
         std::cerr << msg << std::endl;
         throw std::runtime_error(msg);
@@ -67,6 +84,7 @@ Wallet::Wallet(const std::filesystem::path& path)
         std::ofstream bak(m_logfile, std::ofstream::app);
         if (!bak) {
             sqlite3_close_v2(m_db); m_db = nullptr;
+            m_db_lock.unlock();
             std::string msg(absl::StrCat("Unable to open/create wallet recovery file"));
             std::cerr << msg << std::endl;
             throw std::runtime_error(msg);
@@ -86,6 +104,8 @@ Wallet::~Wallet()
     if (error != SQLITE_OK) {
         std::cerr << "WARNING: sqlite3 returned error code " << sqlite3_errstr(error) << " (" << std::to_string(error) << ") when attempting to close database file of wallet.  Data loss may have occured." << std::endl;
     }
+    // Release our filesystem lock on the wallet.
+    m_db_lock.unlock();
 }
 
 bool Wallet::Insert(const SecretWebcash& sk)

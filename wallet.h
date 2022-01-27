@@ -16,6 +16,8 @@
 #include "sqlite3.h"
 #include "uint256.h"
 
+#include "boost/interprocess/sync/file_lock.hpp"
+
 struct SecretWebcash {
     uint256 sk;
     int64_t amount;
@@ -43,6 +45,7 @@ protected:
     std::mutex m_mut;
 
     std::filesystem::path m_logfile;
+    boost::interprocess::file_lock m_db_lock;
     sqlite3* m_db;
 
 public:
