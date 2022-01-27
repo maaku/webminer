@@ -98,6 +98,7 @@ cc_library(
     name = "sqlite3",
     hdrs = [
         "sqlite3.h",
+        "sqlite_orm.h",
     ],
     srcs = [
         "sqlite3.c",
