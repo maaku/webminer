@@ -51,7 +51,9 @@ Wallet::Wallet(const std::filesystem::path& path)
     dbfile.replace_extension(".db");
     int error = sqlite3_open_v2(dbfile.c_str(), &m_db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX | SQLITE_OPEN_EXRESCODE, nullptr);
     if (error != SQLITE_OK) {
-        throw std::runtime_error(absl::StrCat("Unable to open/create wallet database file: ", sqlite3_errstr(error), " (", std::to_string(error), ")"));
+        std::string msg(absl::StrCat("Unable to open/create wallet database file: ", sqlite3_errstr(error), " (", std::to_string(error), ")"));
+        std::cerr << msg << std::endl;
+        throw std::runtime_error(msg);
     }
 
     // Touch the wallet file, which will create it if it doesn't already exist.
@@ -64,7 +66,10 @@ Wallet::Wallet(const std::filesystem::path& path)
         // didn't exist in the first place.
         std::ofstream bak(m_logfile, std::ofstream::app);
         if (!bak) {
-            throw std::runtime_error(absl::StrCat("Unable to open/create wallet recovery file"));
+            sqlite3_close_v2(m_db); m_db = nullptr;
+            std::string msg(absl::StrCat("Unable to open/create wallet recovery file"));
+            std::cerr << msg << std::endl;
+            throw std::runtime_error(msg);
         }
         bak.flush();
     }
@@ -77,7 +82,7 @@ Wallet::~Wallet()
     // No errors are expected when closing the database file, but if there is
     // then that might be an indication of a serious bug or data loss the user
     // should know about.
-    int error = sqlite3_close_v2(m_db);
+    int error = sqlite3_close_v2(m_db); m_db = nullptr;
     if (error != SQLITE_OK) {
         std::cerr << "WARNING: sqlite3 returned error code " << sqlite3_errstr(error) << " (" << std::to_string(error) << ") when attempting to close database file of wallet.  Data loss may have occured." << std::endl;
     }
