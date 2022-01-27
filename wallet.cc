@@ -8,7 +8,6 @@
 
 #include "random.h"
 
-#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -19,6 +18,8 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 
+#include "boost/filesystem.hpp"
+#include "boost/filesystem/fstream.hpp"
 #include "boost/interprocess/sync/file_lock.hpp"
 
 #include "sqlite3.h"
@@ -41,7 +42,7 @@ std::string to_string(const PublicWebcash& epk)
     return webcash_string(epk.amount, "public", epk.pk);
 }
 
-Wallet::Wallet(const std::filesystem::path& path)
+Wallet::Wallet(const boost::filesystem::path& path)
     : m_logfile(path)
 {
     // The caller can either give the path to one of the wallet files (the
@@ -49,13 +50,13 @@ Wallet::Wallet(const std::filesystem::path& path)
     // these files.
     m_logfile.replace_extension(".bak");
 
-    std::filesystem::path dbfile(path);
+    boost::filesystem::path dbfile(path);
     dbfile.replace_extension(".db");
     // Create the database file if it doesn't exist already, so that we can use
     // inter-process file locking primitives on it.  Note that an empty file is
     // a valid, albeit empty sqlite3 database.
     {
-        std::ofstream db(dbfile, std::ofstream::app);
+        boost::filesystem::ofstream db(dbfile.string(), boost::filesystem::ofstream::app);
         db.flush();
     }
     m_db_lock = boost::interprocess::file_lock(dbfile.c_str());
@@ -81,7 +82,7 @@ Wallet::Wallet(const std::filesystem::path& path)
         // This operation isn't protected by a filesystem lock, but that
         // shouldn't be an issue because it doesn't do anything else the file
         // didn't exist in the first place.
-        std::ofstream bak(m_logfile, std::ofstream::app);
+        boost::filesystem::ofstream bak(m_logfile.string(), boost::filesystem::ofstream::app);
         if (!bak) {
             sqlite3_close_v2(m_db); m_db = nullptr;
             m_db_lock.unlock();

@@ -144,6 +144,7 @@ cc_library(
         "wallet.cc",
     ],
     deps = [
+        "@boost//:filesystem",
         "@boost//:interprocess",
         "@com_google_absl//absl/strings:strings",
         ":random",

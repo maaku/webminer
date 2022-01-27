@@ -8,7 +8,6 @@
 
 #include <stdint.h>
 
-#include <filesystem>
 #include <mutex>
 #include <string>
 
@@ -16,6 +15,7 @@
 #include "sqlite3.h"
 #include "uint256.h"
 
+#include "boost/filesystem.hpp"
 #include "boost/interprocess/sync/file_lock.hpp"
 
 struct SecretWebcash {
@@ -44,12 +44,12 @@ class Wallet {
 protected:
     std::mutex m_mut;
 
-    std::filesystem::path m_logfile;
+    boost::filesystem::path m_logfile;
     boost::interprocess::file_lock m_db_lock;
     sqlite3* m_db;
 
 public:
-    Wallet(const std::filesystem::path& path);
+    Wallet(const boost::filesystem::path& path);
     ~Wallet();
 
     bool Insert(const SecretWebcash& sk);
