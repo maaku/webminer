@@ -30,9 +30,14 @@
 
 #include <openssl/bn.h>
 
+#ifdef USE_OPENSSL_ASM
+#include <openssl/sha.h>
+#else
+#include "crypto/sha256.h"
+#endif
+
 #include <univalue.h>
 
-#include "crypto/sha256.h"
 #include "random.h"
 #include "uint256.h"
 
@@ -116,9 +121,13 @@ struct PublicWebcash {
     PublicWebcash(const SecretWebcash& esk)
         : amount(esk.amount)
     {
+#ifdef USE_OPENSSL_ASM
+        SHA256(esk.sk.data(), esk.sk.size(), pk.data());
+#else
         CSHA256()
             .Write(esk.sk.data(), esk.sk.size())
             .Finalize(pk.data());
+#endif
     }
 };
 
@@ -360,9 +369,13 @@ void mining_thread_func(int id)
 
             std::string preimage = absl::Base64Escape(absl::StrCat(prefix, to_string(i), "}"));
             uint256 hash;
+#ifdef USE_OPENSSL_ASM
+            SHA256((unsigned char*)preimage.data(), preimage.size(), hash.begin());
+#else
             CSHA256()
                 .Write((unsigned char*)preimage.data(), preimage.size())
                 .Finalize(hash.begin());
+#endif
 
             if (!(*(const uint16_t*)hash.begin()) && check_proof_of_work(hash, g_difficulty)) {
                 std::string webcash = to_string(keep);
@@ -426,8 +439,12 @@ int main(int argc, char **argv)
         return 1;
     }
 
+#ifdef USE_OPENSSL_ASM
+    std::cout << "Using SHA256 algorithm 'asm-neon'" << std::endl;
+#else
     const std::string algo = SHA256AutoDetect();
     std::cout << "Using SHA256 algorithm '" << algo << "'." << std::endl;
+#endif
 
     ProtocolSettings settings;
     if (!get_protocol_settings(settings)) {

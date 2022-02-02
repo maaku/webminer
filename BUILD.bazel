@@ -74,8 +74,16 @@ cc_library(
 cc_library(
     name = "sha2",
     copts = select({
-        ":aarch64": [],
-        ":armv7hf": [],
+        ":aarch64": [
+            "-mcpu=cortex-a72+crypto",
+            "-march=armv8-a+crypto",
+            "-mtune=cortex-a72",
+        ],
+        ":armv7hf": [
+            "-march=armv7-a",
+            "-mfpu=neon-vfpv4",
+            "-mtune=cortex-a53",
+        ],
         # assume x86_64 as default
         "//conditions:default": [
             "-msse4",
@@ -146,10 +154,20 @@ load("@rules_cc//cc:defs.bzl", "cc_binary")
 cc_binary(
     name = "webminer",
     srcs = ["main.cc"],
+    defines = select({
+        ":aarch64": [
+            "USE_OPENSSL_ASM",
+        ],
+        ":armv7hf": [
+            "USE_OPENSSL_ASM",
+        ],
+        "//conditions:default": [],
+    }),
     deps = [
         "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/flags:usage",
         "@com_google_absl//absl/strings:strings",
+        "@boringssl//:crypto",
         ":cpp_http",
         ":random",
         ":sha2",
@@ -178,6 +196,9 @@ configure_make(
     configure_options = select({
         ":aarch64": [
             "--host=aarch64-linux-gnu",
+        ],
+        ":armv7hf": [
+            "--host=armv7l-unknown-linux-gnueabihf",
         ],
         # assume x86_64 as default
         "//conditions:default": [],
