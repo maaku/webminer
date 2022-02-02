@@ -259,9 +259,13 @@ void update_thread_func()
                 break;
             }
 
+            // Parse response
+            UniValue o;
+            o.read(r->body);
+
             // Handle server rejection by saving the proof-of-work
             // solution to the orphan log.
-            if (r->status != 200) {
+            if (r->status != 200 && !(r->status == 400 && o.isObject() && o.exists("error") && o["error"].get_str() == "Didn't use a new secret value.")) {
                 // server error, or difficulty changed against us
                 std::cerr << "Error: returned invalid response to MiningReport request: status_code=" << r->status << ", text='" << r->body << "'" << std::endl;
                 g_next_settings_fetch = absl::Now();
@@ -273,8 +277,6 @@ void update_thread_func()
             }
 
             // Update difficulty
-            UniValue o;
-            o.read(r->body);
             const UniValue& difficulty = o["difficulty_target"];
             if (difficulty.isNum()) {
                 int bits = difficulty.get_int();
