@@ -274,6 +274,19 @@ void update_thread_func()
                 g_solutions.pop_front();
             }
 
+            // Don't submit work that is less than the current difficulty
+            int current_difficulty = g_difficulty;
+            int apparent_difficulty = get_apparent_difficulty(soln.hash);
+            if (apparent_difficulty < current_difficulty) {
+                // difficulty changed against us
+                std::cerr << "Stale mining report detected (" << apparent_difficulty << " < " << current_difficulty << "); skipping" << std::endl;
+                // Save the solution to the orphan log
+                std::ofstream orphan_log(orphan_log_filename, std::ofstream::app);
+                orphan_log << soln.preimage << ' ' << absl::BytesToHexString(absl::string_view((const char*)soln.hash.begin(), 32)) << ' ' << soln.webcash << " difficulty=" << apparent_difficulty << std::endl;
+                orphan_log.flush();
+                continue;
+            }
+
             // Convert hash to decimal notation
             BIGNUM bn;
             BN_init(&bn);
@@ -311,7 +324,7 @@ void update_thread_func()
                 g_next_settings_fetch = absl::Now();
                 // Save the solution to the orphan log
                 std::ofstream orphan_log(orphan_log_filename, std::ofstream::app);
-                orphan_log << soln.preimage << ' ' << absl::BytesToHexString(absl::string_view((const char*)soln.hash.begin(), 32)) << ' ' << soln.webcash << " difficulty=" << get_apparent_difficulty(soln.hash) << std::endl;
+                orphan_log << soln.preimage << ' ' << absl::BytesToHexString(absl::string_view((const char*)soln.hash.begin(), 32)) << ' ' << soln.webcash << " difficulty=" << apparent_difficulty << std::endl;
                 orphan_log.flush();
                 continue;
             }
