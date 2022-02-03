@@ -325,24 +325,32 @@ void mining_thread_func(int id)
 
         std::string subsidy_str = to_string(subsidy);
         std::string prefix = absl::StrCat("{\"webcash\": [\"", to_string(keep), "\", \"", subsidy_str, "\"], \"subsidy\": [\"", subsidy_str, "\"], \"nonce\": ");
+        // Extend the prefix to be a multiple of 48 in size...
+        prefix.resize(48 * (1 + prefix.size() / 48), ' ');
+        prefix.back() = '1';
+        // ...which becomes 64 bytes when base64 encoded.
+        std::string prefix_b64 = absl::Base64Escape(prefix);
+        // And 64 bytes is the SHA256 block size.
+        CSHA256 midstate;
+        midstate.Write((unsigned char*)prefix_b64.data(), prefix_b64.size());
 
-        for (int i = 0; i < 10000; ++i) {
+        for (int i = 0; i < 262144; ++i) {
             ++g_attempts;
 
-            std::string preimage = absl::Base64Escape(absl::StrCat(prefix, to_string(i), "}"));
+            std::string nonce_b64 = absl::Base64Escape(absl::StrCat(to_string(i), "}"));
             uint256 hash;
-            CSHA256()
-                .Write((unsigned char*)preimage.data(), preimage.size())
+            CSHA256(midstate)
+                .Write((unsigned char*)nonce_b64.data(), nonce_b64.size())
                 .Finalize(hash.begin());
 
             if (!(*(const uint16_t*)hash.begin()) && check_proof_of_work(hash, g_difficulty)) {
-                std::cout << "GOT SOLUTION!!! " << preimage << " " << absl::StrCat("0x" + absl::BytesToHexString(absl::string_view((const char*)hash.begin(), 32))) << " " << to_string(keep) << std::endl;
+                std::cout << "GOT SOLUTION!!! " << prefix_b64 << nonce_b64 << " " << absl::StrCat("0x" + absl::BytesToHexString(absl::string_view((const char*)hash.begin(), 32))) << " " << to_string(keep) << std::endl;
 
                 // Add solution to the queue, and wake up the server
                 // communication thread.
                 {
                     const std::lock_guard<std::mutex> lock(g_state_mutex);
-                    g_solutions.emplace_back(hash, preimage, keep);
+                    g_solutions.emplace_back(hash, absl::StrCat(prefix_b64, nonce_b64), keep);
                 }
                 g_update_thread_cv.notify_all();
 
