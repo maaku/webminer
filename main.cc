@@ -266,7 +266,7 @@ void update_thread_func()
             // Handle network errors by aborting further processing
             if (!r) {
                 std::cerr << "Error: returned invalid response to MiningReport request: " << r.error() << std::endl;
-                std::cerr << "Possible transient error, or server timeout?  Waiting to re-attempt.";
+                std::cerr << "Possible transient error, or server timeout?  Waiting to re-attempt." << std::endl;
                 const std::lock_guard<std::mutex> lock(g_state_mutex);
                 g_solutions.push_front(soln);
                 break;
