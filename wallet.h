@@ -80,7 +80,7 @@ public:
     Wallet(const boost::filesystem::path& path);
     ~Wallet();
 
-    bool Insert(const SecretWebcash& sk);
+    bool Insert(const SecretWebcash& sk, bool mine);
 
     // Have *any* terms of service been accepted?
     bool HaveAcceptedTerms() const;
