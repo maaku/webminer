@@ -348,7 +348,7 @@ void update_thread_func()
             }
 
             // Claim the coin with our wallet
-            if (!g_wallet->Insert(soln.webcash)) {
+            if (!g_wallet->Insert(soln.webcash, true)) {
                 // Save the successfully submitted webcash to the log, since we
                 // were unable to add it to the wallet.
                 std::ofstream webcash_log(webcash_log_filename, std::ofstream::app);

@@ -25,13 +25,77 @@
 
 #include "sqlite3.h"
 
+// We group outputs based on their use.  There are currently four categories of
+// webcash recognized by the wallet:
+enum HashType : int {
+    // Pre-generated key that hasn't yet been used for any purpose.  To make
+    // backups possible and to minimize the chance of losing funds if/when
+    // wallet corruption occurs, the wallet maintains a pool of pre-generated
+    // secrets.  These are allocated and used, as needed, in FIFO order.
+    UNUSED = -1,
+
+    // Outputs generated as payments to others.  These are intended to be
+    // immediately claimed by the other party, but we keep the key in this
+    // wallet in case there are problems completing the transaction.
+    PAYMENT = 0,
+
+    // Outputs added via explicit import.  These are shown as visible, discrete
+    // inputs to the wallet.  The wallet always redeems received webcash upon
+    // import under the assumption that the imported secret value is still known
+    // to others or otherwise not secure.
+    RECEIVE = 1,
+
+    // Internal webcash generated either to redeem payments or mined webcash,
+    // change from a payment, or the consolidation of such outputs.  These
+    // outputs count towards the current balance of the wallet, but aren't shown
+    // explicitly.
+    CHANGE = 2,
+
+    // Outputs generated via a mining report.  These are seen as visible inputs
+    // to a wallet, aggregated as "mining income."  The wallet always redeems
+    // mining inputs for change immediately after generation, in case the mining
+    // reports (which contain the secret) are made public.
+    MINING = 3,
+};
+
+struct WalletSecret;
+
+struct WalletOutput {
+    int id;
+    uint256 hash;
+    std::unique_ptr<WalletSecret> secret;
+    int64_t amount;
+    bool spent;
+};
+
+struct WalletSecret {
+    int id;
+    uint256 secret;
+    bool mine;
+    bool sweep;
+};
+
 void Wallet::UpgradeDatabase()
 {
-    std::array<std::string, 1> tables = {
+    std::array<std::string, 3> tables = {
         "CREATE TABLE IF NOT EXISTS 'terms' ("
             "'id' INTEGER PRIMARY KEY NOT NULL,"
             "'body' TEXT UNIQUE NOT NULL,"
             "'timestamp' INTEGER NOT NULL);",
+        "CREATE TABLE IF NOT EXISTS 'output' ("
+            "'id' INTEGER PRIMARY KEY NOT NULL,"
+            "'timestamp' INTEGER NOT NULL,"
+            "'hash' BLOB NOT NULL,"
+            "'secret_id' INTEGER,"
+            "'amount' INTEGER NOT NULL,"
+            "'spent' INTEGER NOT NULL,"
+            "FOREIGN KEY('secret_id') REFERENCES 'secret'('id'));",
+        "CREATE TABLE IF NOT EXISTS 'secret' ("
+            "'id' INTEGER PRIMARY KEY NOT NULL,"
+            "'timestamp' INTEGER NOT NULL,"
+            "'secret' TEXT UNIQUE NOT NULL,"
+            "'mine' INTEGER NOT NULL,"
+            "'sweep' INTEGER NOT NULL);",
     };
 
     for (const std::string& stmt : tables) {
@@ -123,10 +187,119 @@ Wallet::~Wallet()
     m_db_lock.unlock();
 }
 
-bool Wallet::Insert(const SecretWebcash& sk)
+bool Wallet::Insert(const SecretWebcash& sk, bool mine)
 {
+    using std::to_string;
     const std::lock_guard<std::mutex> lock(m_mut);
-    return false;
+    bool result = true;
+
+    // The database records
+    const int64_t now = absl::ToUnixSeconds(absl::Now());
+
+    // First write the key to the wallet recovery file
+    {
+        std::string line = absl::StrCat(to_string(now), " ", mine ? "mining" : "receive", " ", to_string(sk));
+        boost::filesystem::ofstream bak(m_logfile.string(), boost::filesystem::ofstream::app);
+        if (!bak) {
+            std::cerr << "WARNING: Unable to open/create wallet recovery file to save key prior to insertion: \"" << line << "\".  BACKUP THIS KEY NOW TO AVOID DATA LOSS!" << std::endl;
+            // We do not return false here even though there was an error writing to
+            // the recovery log, because we can still attempt to save the key to the
+            // wallet.
+            result = false;
+        } else {
+            bak << line << std::endl;
+            bak.flush();
+        }
+    }
+
+    // Then attempt to write the key to the wallet database
+    const std::string stmt = "INSERT INTO 'secret' ('timestamp', 'secret', 'mine', 'sweep') VALUES(?, ?, ?, ?);";
+    sqlite3_stmt* insert;
+    int res = sqlite3_prepare_v2(m_db, stmt.c_str(), stmt.size(), &insert, nullptr);
+    if (res != SQLITE_OK) {
+        std::cerr << "Unable to prepare SQL statement [\"" << stmt << "\"]: " << sqlite3_errstr(res) << " (" << to_string(res) << ")" << std::endl;
+        return false;
+    }
+    res = sqlite3_bind_int64(insert, 1, now);
+    if (res != SQLITE_OK) {
+        std::cerr << "Unable to bind 'timestamp' in SQL statement [\"" << stmt << "\"] to " << to_string(now) << ": " << sqlite3_errstr(res) << " (" << to_string(res) << ")";
+        sqlite3_finalize(insert);
+        return false;
+    }
+    const std::string secret_hex = absl::BytesToHexString(sk.sk);
+    res = sqlite3_bind_text(insert, 2, secret_hex.c_str(), secret_hex.size(), SQLITE_STATIC);
+    if (res != SQLITE_OK) {
+        std::cerr << "Unable to bind 'secret' in SQL statement [\"" << stmt << "\"] to x'" << absl::BytesToHexString(sk.sk) << "': " << sqlite3_errstr(res) << " (" << to_string(res) << ")" << std::endl;
+        sqlite3_finalize(insert);
+        return false;
+    }
+    res = sqlite3_bind_int(insert, 3, !!mine);
+    if (res != SQLITE_OK) {
+        std::cerr << "Unable to bind 'mine' in SQL statement [\"" << stmt << "\"] to " << (mine ? "TRUE" : "FALSE") << ": " << sqlite3_errstr(res) << " (" << to_string(res) << ")";
+        sqlite3_finalize(insert);
+        return false;
+    }
+    res = sqlite3_bind_int(insert, 4, !!true);
+    if (res != SQLITE_OK) {
+        std::cerr << "Unable to bind 'sweep' in SQL statement [\"" << stmt << "\"] to TRUE: " << sqlite3_errstr(res) << " (" << to_string(res) << ")";
+        sqlite3_finalize(insert);
+        return false;
+    }
+    res = sqlite3_step(insert);
+    if (res != SQLITE_DONE) {
+        std::cerr << "Running SQL statement [\"" << sqlite3_expanded_sql(insert) << "\"] returned unexpected status code: " << sqlite3_errstr(res) << " (" << to_string(res) << ")" << std::endl;
+        sqlite3_finalize(insert);
+        return false;
+    }
+    int secret_id = sqlite3_last_insert_rowid(m_db);
+    sqlite3_finalize(insert); insert = nullptr;
+
+    // And then write the output record
+    const std::string stmt2 = "INSERT INTO 'output' ('timestamp', 'hash', 'secret_id', 'amount', 'spent') VALUES(?, ?, ?, ?, ?);";
+    PublicWebcash pk(sk);
+    res = sqlite3_prepare_v2(m_db, stmt2.c_str(), stmt2.size(), &insert, nullptr);
+    if (res != SQLITE_OK) {
+        std::cerr << "Unable to prepare SQL statement [\"" << stmt2 << "\"]: " << sqlite3_errstr(res) << " (" << to_string(res) << ")" << std::endl;
+        return false;
+    }
+    res = sqlite3_bind_int64(insert, 1, now);
+    if (res != SQLITE_OK) {
+        std::cerr << "Unable to bind 'timestamp' in SQL statement [\"" << stmt2 << "\"] to " << to_string(now) << ": " << sqlite3_errstr(res) << " (" << to_string(res) << ")" << std::endl;
+        sqlite3_finalize(insert);
+        return false;
+    }
+    res = sqlite3_bind_blob(insert, 2, pk.pk.begin(), 32, SQLITE_STATIC);
+    if (res != SQLITE_OK) {
+        std::cerr << "Unable to bind 'hash' in SQL statement [\"" << stmt2 << "\"] to x'" << absl::BytesToHexString(absl::string_view((const char*)pk.pk.begin(), 32)) << "': " << sqlite3_errstr(res) << " (" << to_string(res) << ")" << std::endl;
+        sqlite3_finalize(insert);
+        return false;
+    }
+    res = sqlite3_bind_int(insert, 3, secret_id);
+    if (res != SQLITE_OK) {
+        std::cerr << "Unable to bind 'secret_id' in SQL statement [\"" << stmt2 << "\"] to " << to_string(secret_id) << ": " << sqlite3_errstr(res) << " (" << to_string(res) << ")" << std::endl;
+        sqlite3_finalize(insert);
+        return false;
+    }
+    res = sqlite3_bind_int64(insert, 4, pk.amount.i64);
+    if (res != SQLITE_OK) {
+        std::cerr << "Unable to bind 'amount' in SQL statement [\"" << stmt2 << "\"] to " << to_string(pk.amount.i64) << ": " << sqlite3_errstr(res) << " (" << to_string(res) << ")" << std::endl;
+        sqlite3_finalize(insert);
+        return false;
+    }
+    res = sqlite3_bind_int(insert, 5, !!false);
+    if (res != SQLITE_OK) {
+        std::cerr << "Unable to bind 'spent' in SQL statement [\"" << stmt2 << "\"] to FALSE: " << sqlite3_errstr(res) << " (" << to_string(res) << ")" << std::endl;
+        sqlite3_finalize(insert);
+        return false;
+    }
+    res = sqlite3_step(insert);
+    if (res != SQLITE_DONE) {
+        std::cerr << "Running SQL statement [\"" << sqlite3_expanded_sql(insert) << "\"] returned unexpected status code: " << sqlite3_errstr(res) << " (" << to_string(res) << ")" << std::endl;
+        result = false;
+    }
+    sqlite3_finalize(insert);
+
+    return result;
 }
 
 bool Wallet::HaveAcceptedTerms() const
