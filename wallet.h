@@ -15,6 +15,9 @@
 #include "sqlite3.h"
 #include "uint256.h"
 
+#include "absl/strings/escaping.h"
+#include "absl/strings/string_view.h"
+
 #include "boost/filesystem.hpp"
 #include "boost/interprocess/sync/file_lock.hpp"
 
@@ -32,8 +35,9 @@ struct PublicWebcash {
     PublicWebcash(const SecretWebcash& esk)
         : amount(esk.amount)
     {
+        std::string hex = absl::BytesToHexString(absl::string_view((const char*)esk.sk.data(), esk.sk.size()));
         CSHA256()
-            .Write(esk.sk.data(), esk.sk.size())
+            .Write(hex.c_str(), hex.size())
             .Finalize(pk.data());
     }
 };
