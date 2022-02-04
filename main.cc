@@ -363,22 +363,42 @@ void mining_thread_func(int id)
 
         std::string subsidy_str = to_string(subsidy);
         std::string prefix = absl::StrCat("{\"webcash\": [\"", to_string(keep), "\", \"", subsidy_str, "\"], \"subsidy\": [\"", subsidy_str, "\"], \"nonce\": ");
+        // Extend the prefix to be a multiple of 48 in size...
+        prefix.resize(48 * (1 + prefix.size() / 48), ' ');
+        prefix.back() = '1';
+        // ...which becomes 64 bytes when base64 encoded.
+        std::string prefix_b64 = absl::Base64Escape(prefix);
 
-        for (int i = 0; i < 10000; ++i) {
+#ifdef USE_OPENSSL_ASM
+        // OpenSSL needs a seperate context for midstate
+        SHA256_CTX sha256_mid, sha256_final;
+        SHA256_Init(&sha256_mid);
+        SHA256_Init(&sha256_final);
+        SHA256_Update(&sha256_mid, (unsigned char*)prefix_b64.data(), prefix_b64.size());
+#else
+        CSHA256 midstate;
+        midstate.Write((unsigned char*)prefix_b64.data(), prefix_b64.size());
+#endif
+
+        for (int i = 0; i < 262144; ++i) {
             ++g_attempts;
 
-            std::string preimage = absl::Base64Escape(absl::StrCat(prefix, to_string(i), "}"));
             uint256 hash;
+            std::string nonce_b64 = absl::Base64Escape(absl::StrCat(to_string(i), "}"));
 #ifdef USE_OPENSSL_ASM
-            SHA256((unsigned char*)preimage.data(), preimage.size(), hash.begin());
+            // (Re-)set the pointer to midstate before hashing the nonce
+            sha256_final = sha256_mid;
+            SHA256_Update(&sha256_final, (unsigned char*)nonce_b64.data(), nonce_b64.size());
+            SHA256_Final(hash.begin(), &sha256_final);
 #else
-            CSHA256()
-                .Write((unsigned char*)preimage.data(), preimage.size())
+            CSHA256(midstate)
+                .Write((unsigned char*)nonce_b64.data(), nonce_b64.size())
                 .Finalize(hash.begin());
 #endif
 
             if (!(*(const uint16_t*)hash.begin()) && check_proof_of_work(hash, g_difficulty)) {
                 std::string webcash = to_string(keep);
+                std::string preimage = absl::StrCat(prefix_b64, nonce_b64);
                 std::cout << "GOT SOLUTION!!! " << preimage << " " << absl::StrCat("0x" + absl::BytesToHexString(absl::string_view((const char*)hash.begin(), 32))) << " " << webcash << std::endl;
 
                 // Add solution to the queue, and wake up the server
