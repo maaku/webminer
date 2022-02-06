@@ -37,7 +37,7 @@ struct PublicWebcash {
     {
         std::string hex = absl::BytesToHexString(absl::string_view((const char*)esk.sk.data(), esk.sk.size()));
         CSHA256()
-            .Write(hex.c_str(), hex.size())
+            .Write((const unsigned char*)hex.c_str(), hex.size())
             .Finalize(pk.data());
     }
 };
