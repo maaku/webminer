@@ -447,11 +447,11 @@ void mining_thread_func(int id)
         midstate.Write((unsigned char*)prefix_b64.data(), prefix_b64.size());
 #endif
 
+        uint256 hash;
         for (int i = 0; i < 1000; ++i) {
             for (int j = 0; j < 1000; ++j) {
                 ++g_attempts;
 
-                uint256 hash;
 #ifdef USE_OPENSSL_ASM
                 // (Re-)set the pointer to midstate before hashing the nonce
                 sha256_final = sha256_mid;
