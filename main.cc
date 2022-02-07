@@ -401,11 +401,11 @@ void mining_thread_func(int id)
         CSHA256 midstate;
         midstate.Write((unsigned char*)prefix_b64.data(), prefix_b64.size());
 
+        uint256 hash;
         for (int i = 0; i < 1000; ++i) {
           for (int j = 0; j < 1000; ++j) {
             ++g_attempts;
 
-            uint256 hash;
             CSHA256(midstate)
                 .Write((const unsigned char*)nonces + 4*j, 4)
                 .Write((const unsigned char*)nonces + 4*i, 4)
