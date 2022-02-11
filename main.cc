@@ -403,33 +403,34 @@ void mining_thread_func(int id)
 
         unsigned char hashes[8*32] = {0};
         for (int i = 0; i < 1000; ++i) {
-          for (int j = 0; j < 1000; j += 8) {
-            g_attempts += 8;
+            for (int j = 0; j < 1000; j += 8) {
+                g_attempts += 8;
 
-            midstate.WriteAndFinalize8((const unsigned char*)nonces + 4*i, (const unsigned char*)nonces + 4*j, (const unsigned char*)final, hashes);
+                midstate.WriteAndFinalize8((const unsigned char*)nonces + 4*i, (const unsigned char*)nonces + 4*j, (const unsigned char*)final, hashes);
 
-            for (int k = 0; k < 8; ++k) {
-                if (!(*(const uint16_t*)(hashes + k*32))) {
-                    uint256 hash({hashes + k*32, hashes + k*32 + 32});
-                    if (check_proof_of_work(hash, g_difficulty)) {
-                        std::string work = absl::StrCat(prefix_b64, absl::string_view(nonces + 4*i, 4), absl::string_view(nonces + 4*j + 4*k, 4), final);
-                std::cout << "GOT SOLUTION!!! " << work << " " << absl::StrCat("0x" + absl::BytesToHexString(absl::string_view((const char*)hash.begin(), 32))) << " " << to_string(keep) << std::endl;
+                for (int k = 0; k < 8; ++k) {
+                    if (!(*(const uint16_t*)(hashes + k*32))) {
+                        uint256 hash({hashes + k*32, hashes + k*32 + 32});
+                        if (check_proof_of_work(hash, g_difficulty)) {
+                            std::string work = absl::StrCat(prefix_b64, absl::string_view(nonces + 4*i, 4), absl::string_view(nonces + 4*j + 4*k, 4), final);
+                            std::cout << "GOT SOLUTION!!! " << work << " " << absl::StrCat("0x" + absl::BytesToHexString(absl::string_view((const char*)hash.begin(), 32))) << " " << to_string(keep) << std::endl;
 
-                // Add solution to the queue, and wake up the server
-                // communication thread.
-                {
-                    const std::lock_guard<std::mutex> lock(g_state_mutex);
-                    g_solutions.emplace_back(hash, work, keep);
-                }
-                g_update_thread_cv.notify_all();
+                            // Add solution to the queue, and wake up the server
+                            // communication thread.
+                            {
+                                const std::lock_guard<std::mutex> lock(g_state_mutex);
+                                g_solutions.emplace_back(hash, work, keep);
+                            }
+                            g_update_thread_cv.notify_all();
 
-                // Generate new Webcash secrets, so that we don't reuse a secret
-                // if we happen to generate two solutions back-to-back.
-                break;
+                            // Generate new Webcash secrets, so that we don't
+                            // reuse a secret if we happen to generate two
+                            // solutions back-to-back.
+                            break;
+                        }
                     }
                 }
             }
-          }
         }
     }
 }
