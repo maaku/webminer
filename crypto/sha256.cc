@@ -22,6 +22,11 @@ void Transform(uint32_t* s, const unsigned char* chunk, size_t blocks);
 }
 #endif
 
+namespace sha256multi_sse41
+{
+void Transform_4way(unsigned char* out, const uint32_t* s, const unsigned char* in);
+}
+
 namespace sha256d64_sse41
 {
 void Transform_4way(unsigned char* out, const unsigned char* in);
@@ -617,6 +622,7 @@ std::string SHA256AutoDetect()
         ret = "sse4(1way)";
 #endif
 #if !defined(BUILD_BITCOIN_INTERNAL)
+        Transform_4way = sha256multi_sse41::Transform_4way;
         TransformD64_4way = sha256d64_sse41::Transform_4way;
         ret += ",sse41(4way)";
 #endif
