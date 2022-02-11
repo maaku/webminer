@@ -8,6 +8,8 @@
 #include "crypto/sha256.h"
 #include "crypto/common.h"
 
+#include <array>
+
 #include <assert.h>
 #include <string.h>
 
@@ -416,6 +418,7 @@ void TransformD64(unsigned char* out, const unsigned char* in)
 } // namespace sha256
 
 typedef void (*TransformType)(uint32_t*, const unsigned char*, size_t);
+typedef void (*TransformMultiType)(unsigned char*, const uint32_t*, const unsigned char*);
 typedef void (*TransformD64Type)(unsigned char*, const unsigned char*);
 
 template<TransformType tr>
@@ -458,6 +461,9 @@ void TransformD64Wrapper(unsigned char* out, const unsigned char* in)
 }
 
 TransformType Transform = sha256::Transform;
+TransformMultiType Transform_2way = nullptr;
+TransformMultiType Transform_4way = nullptr;
+TransformMultiType Transform_8way = nullptr;
 TransformD64Type TransformD64 = sha256::TransformD64;
 TransformD64Type TransformD64_2way = nullptr;
 TransformD64Type TransformD64_4way = nullptr;
@@ -661,6 +667,20 @@ CSHA256& CSHA256::Write(const unsigned char* data, size_t len)
     return *this;
 }
 
+void CSHA256::WriteAndFinalize8(const unsigned char* nonce1, const unsigned char* nonce2, const unsigned char* final, unsigned char hashes[OUTPUT_SIZE*8])
+{
+    std::array<unsigned char, 8*64> blocks = {};
+    for (int i = 0; i < 8; ++i) {
+        std::copy(nonce1, nonce1 + 4, blocks.begin() + i*64 + 0);
+        std::copy(nonce2, nonce2 + 4, blocks.begin() + i*64 + 4);
+        std::copy(final, final + 4, blocks.begin() + i*64 + 8);
+        blocks[i*64 + 12] = 0x80; // padding byte
+        WriteBE64(blocks.data() + i*64 + 56, (bytes + 12) << 3);
+        nonce2 += 4;
+    }
+    SHA256Midstate(hashes, s, blocks.data(), 8);
+}
+
 void CSHA256::Finalize(unsigned char hash[OUTPUT_SIZE])
 {
     static const unsigned char pad[64] = {0x80};
@@ -714,6 +734,45 @@ void SHA256D64(unsigned char* out, const unsigned char* in, size_t blocks)
     while (blocks) {
         TransformD64(out, in);
         out += 32;
+        in += 64;
+        --blocks;
+    }
+}
+
+void SHA256Midstate(unsigned char* out, const uint32_t* midstate, const unsigned char* in, size_t blocks)
+{
+    if (Transform_8way) {
+        while (blocks >= 8) {
+            Transform_8way(out, midstate, in);
+            out += 256;
+            in += 512;
+            blocks -= 8;
+        }
+    }
+    if (Transform_4way) {
+        while (blocks >= 4) {
+            Transform_4way(out, midstate, in);
+            out += 128;
+            in += 256;
+            blocks -= 4;
+        }
+    }
+    if (Transform_2way) {
+        while (blocks >= 2) {
+            Transform_2way(out, midstate, in);
+            out += 64;
+            in += 128;
+            blocks -= 2;
+        }
+    }
+    while (blocks) {
+        std::array<uint32_t, 8> s;
+        std::copy(midstate, midstate + 8, s.data());
+        Transform(s.data(), in, 1);
+        for (int i = 0; i < 8; ++i) {
+            WriteBE32(out, s[i]);
+            out += 4;
+        }
         in += 64;
         --blocks;
     }

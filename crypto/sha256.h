@@ -26,6 +26,7 @@ public:
     CSHA256();
     CSHA256& Write(const unsigned char* data, size_t len);
     void Finalize(unsigned char hash[OUTPUT_SIZE]);
+    void WriteAndFinalize8(const unsigned char* nonce1, const unsigned char* nonce2, const unsigned char* final, unsigned char hash[OUTPUT_SIZE*8]);
     CSHA256& Reset();
 };
 
@@ -40,6 +41,8 @@ std::string SHA256AutoDetect();
  *  blocks:  the number of hashes to compute.
  */
 void SHA256D64(unsigned char* output, const unsigned char* input, size_t blocks);
+
+void SHA256Midstate(unsigned char* out, const uint32_t* midstate, const unsigned char* in, size_t blocks);
 
 #endif // BITCOIN_CRYPTO_SHA256_H
 
