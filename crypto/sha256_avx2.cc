@@ -12,7 +12,6 @@
 
 #include "crypto/common.h"
 
-namespace sha256d64_avx2 {
 namespace {
 
 __m256i inline K(uint32_t x) { return _mm256_set1_epi32(x); }
@@ -74,6 +73,102 @@ void inline Write8(unsigned char* out, int offset, __m256i v) {
 }
 
 }
+
+namespace sha256multi_avx2 {
+
+void Transform_8way(unsigned char* out, const uint32_t* s, const unsigned char* in)
+{
+    // Transform 1
+    __m256i a = K(s[0]);
+    __m256i b = K(s[1]);
+    __m256i c = K(s[2]);
+    __m256i d = K(s[3]);
+    __m256i e = K(s[4]);
+    __m256i f = K(s[5]);
+    __m256i g = K(s[6]);
+    __m256i h = K(s[7]);
+
+    __m256i w0, w1, w2, w3, w4, w5, w6, w7, w8, w9, w10, w11, w12, w13, w14, w15;
+
+    Round(a, b, c, d, e, f, g, h, Add(K(0x428a2f98ul), w0 = Read8(in, 0)));
+    Round(h, a, b, c, d, e, f, g, Add(K(0x71374491ul), w1 = Read8(in, 4)));
+    Round(g, h, a, b, c, d, e, f, Add(K(0xb5c0fbcful), w2 = Read8(in, 8)));
+    Round(f, g, h, a, b, c, d, e, Add(K(0xe9b5dba5ul), w3 = Read8(in, 12)));
+    Round(e, f, g, h, a, b, c, d, Add(K(0x3956c25bul), w4 = Read8(in, 16)));
+    Round(d, e, f, g, h, a, b, c, Add(K(0x59f111f1ul), w5 = Read8(in, 20)));
+    Round(c, d, e, f, g, h, a, b, Add(K(0x923f82a4ul), w6 = Read8(in, 24)));
+    Round(b, c, d, e, f, g, h, a, Add(K(0xab1c5ed5ul), w7 = Read8(in, 28)));
+    Round(a, b, c, d, e, f, g, h, Add(K(0xd807aa98ul), w8 = Read8(in, 32)));
+    Round(h, a, b, c, d, e, f, g, Add(K(0x12835b01ul), w9 = Read8(in, 36)));
+    Round(g, h, a, b, c, d, e, f, Add(K(0x243185beul), w10 = Read8(in, 40)));
+    Round(f, g, h, a, b, c, d, e, Add(K(0x550c7dc3ul), w11 = Read8(in, 44)));
+    Round(e, f, g, h, a, b, c, d, Add(K(0x72be5d74ul), w12 = Read8(in, 48)));
+    Round(d, e, f, g, h, a, b, c, Add(K(0x80deb1feul), w13 = Read8(in, 52)));
+    Round(c, d, e, f, g, h, a, b, Add(K(0x9bdc06a7ul), w14 = Read8(in, 56)));
+    Round(b, c, d, e, f, g, h, a, Add(K(0xc19bf174ul), w15 = Read8(in, 60)));
+    Round(a, b, c, d, e, f, g, h, Add(K(0xe49b69c1ul), Inc(w0, sigma1(w14), w9, sigma0(w1))));
+    Round(h, a, b, c, d, e, f, g, Add(K(0xefbe4786ul), Inc(w1, sigma1(w15), w10, sigma0(w2))));
+    Round(g, h, a, b, c, d, e, f, Add(K(0x0fc19dc6ul), Inc(w2, sigma1(w0), w11, sigma0(w3))));
+    Round(f, g, h, a, b, c, d, e, Add(K(0x240ca1ccul), Inc(w3, sigma1(w1), w12, sigma0(w4))));
+    Round(e, f, g, h, a, b, c, d, Add(K(0x2de92c6ful), Inc(w4, sigma1(w2), w13, sigma0(w5))));
+    Round(d, e, f, g, h, a, b, c, Add(K(0x4a7484aaul), Inc(w5, sigma1(w3), w14, sigma0(w6))));
+    Round(c, d, e, f, g, h, a, b, Add(K(0x5cb0a9dcul), Inc(w6, sigma1(w4), w15, sigma0(w7))));
+    Round(b, c, d, e, f, g, h, a, Add(K(0x76f988daul), Inc(w7, sigma1(w5), w0, sigma0(w8))));
+    Round(a, b, c, d, e, f, g, h, Add(K(0x983e5152ul), Inc(w8, sigma1(w6), w1, sigma0(w9))));
+    Round(h, a, b, c, d, e, f, g, Add(K(0xa831c66dul), Inc(w9, sigma1(w7), w2, sigma0(w10))));
+    Round(g, h, a, b, c, d, e, f, Add(K(0xb00327c8ul), Inc(w10, sigma1(w8), w3, sigma0(w11))));
+    Round(f, g, h, a, b, c, d, e, Add(K(0xbf597fc7ul), Inc(w11, sigma1(w9), w4, sigma0(w12))));
+    Round(e, f, g, h, a, b, c, d, Add(K(0xc6e00bf3ul), Inc(w12, sigma1(w10), w5, sigma0(w13))));
+    Round(d, e, f, g, h, a, b, c, Add(K(0xd5a79147ul), Inc(w13, sigma1(w11), w6, sigma0(w14))));
+    Round(c, d, e, f, g, h, a, b, Add(K(0x06ca6351ul), Inc(w14, sigma1(w12), w7, sigma0(w15))));
+    Round(b, c, d, e, f, g, h, a, Add(K(0x14292967ul), Inc(w15, sigma1(w13), w8, sigma0(w0))));
+    Round(a, b, c, d, e, f, g, h, Add(K(0x27b70a85ul), Inc(w0, sigma1(w14), w9, sigma0(w1))));
+    Round(h, a, b, c, d, e, f, g, Add(K(0x2e1b2138ul), Inc(w1, sigma1(w15), w10, sigma0(w2))));
+    Round(g, h, a, b, c, d, e, f, Add(K(0x4d2c6dfcul), Inc(w2, sigma1(w0), w11, sigma0(w3))));
+    Round(f, g, h, a, b, c, d, e, Add(K(0x53380d13ul), Inc(w3, sigma1(w1), w12, sigma0(w4))));
+    Round(e, f, g, h, a, b, c, d, Add(K(0x650a7354ul), Inc(w4, sigma1(w2), w13, sigma0(w5))));
+    Round(d, e, f, g, h, a, b, c, Add(K(0x766a0abbul), Inc(w5, sigma1(w3), w14, sigma0(w6))));
+    Round(c, d, e, f, g, h, a, b, Add(K(0x81c2c92eul), Inc(w6, sigma1(w4), w15, sigma0(w7))));
+    Round(b, c, d, e, f, g, h, a, Add(K(0x92722c85ul), Inc(w7, sigma1(w5), w0, sigma0(w8))));
+    Round(a, b, c, d, e, f, g, h, Add(K(0xa2bfe8a1ul), Inc(w8, sigma1(w6), w1, sigma0(w9))));
+    Round(h, a, b, c, d, e, f, g, Add(K(0xa81a664bul), Inc(w9, sigma1(w7), w2, sigma0(w10))));
+    Round(g, h, a, b, c, d, e, f, Add(K(0xc24b8b70ul), Inc(w10, sigma1(w8), w3, sigma0(w11))));
+    Round(f, g, h, a, b, c, d, e, Add(K(0xc76c51a3ul), Inc(w11, sigma1(w9), w4, sigma0(w12))));
+    Round(e, f, g, h, a, b, c, d, Add(K(0xd192e819ul), Inc(w12, sigma1(w10), w5, sigma0(w13))));
+    Round(d, e, f, g, h, a, b, c, Add(K(0xd6990624ul), Inc(w13, sigma1(w11), w6, sigma0(w14))));
+    Round(c, d, e, f, g, h, a, b, Add(K(0xf40e3585ul), Inc(w14, sigma1(w12), w7, sigma0(w15))));
+    Round(b, c, d, e, f, g, h, a, Add(K(0x106aa070ul), Inc(w15, sigma1(w13), w8, sigma0(w0))));
+    Round(a, b, c, d, e, f, g, h, Add(K(0x19a4c116ul), Inc(w0, sigma1(w14), w9, sigma0(w1))));
+    Round(h, a, b, c, d, e, f, g, Add(K(0x1e376c08ul), Inc(w1, sigma1(w15), w10, sigma0(w2))));
+    Round(g, h, a, b, c, d, e, f, Add(K(0x2748774cul), Inc(w2, sigma1(w0), w11, sigma0(w3))));
+    Round(f, g, h, a, b, c, d, e, Add(K(0x34b0bcb5ul), Inc(w3, sigma1(w1), w12, sigma0(w4))));
+    Round(e, f, g, h, a, b, c, d, Add(K(0x391c0cb3ul), Inc(w4, sigma1(w2), w13, sigma0(w5))));
+    Round(d, e, f, g, h, a, b, c, Add(K(0x4ed8aa4aul), Inc(w5, sigma1(w3), w14, sigma0(w6))));
+    Round(c, d, e, f, g, h, a, b, Add(K(0x5b9cca4ful), Inc(w6, sigma1(w4), w15, sigma0(w7))));
+    Round(b, c, d, e, f, g, h, a, Add(K(0x682e6ff3ul), Inc(w7, sigma1(w5), w0, sigma0(w8))));
+    Round(a, b, c, d, e, f, g, h, Add(K(0x748f82eeul), Inc(w8, sigma1(w6), w1, sigma0(w9))));
+    Round(h, a, b, c, d, e, f, g, Add(K(0x78a5636ful), Inc(w9, sigma1(w7), w2, sigma0(w10))));
+    Round(g, h, a, b, c, d, e, f, Add(K(0x84c87814ul), Inc(w10, sigma1(w8), w3, sigma0(w11))));
+    Round(f, g, h, a, b, c, d, e, Add(K(0x8cc70208ul), Inc(w11, sigma1(w9), w4, sigma0(w12))));
+    Round(e, f, g, h, a, b, c, d, Add(K(0x90befffaul), Inc(w12, sigma1(w10), w5, sigma0(w13))));
+    Round(d, e, f, g, h, a, b, c, Add(K(0xa4506cebul), Inc(w13, sigma1(w11), w6, sigma0(w14))));
+    Round(c, d, e, f, g, h, a, b, Add(K(0xbef9a3f7ul), Inc(w14, sigma1(w12), w7, sigma0(w15))));
+    Round(b, c, d, e, f, g, h, a, Add(K(0xc67178f2ul), Inc(w15, sigma1(w13), w8, sigma0(w0))));
+
+    // Output
+    Write8(out, 0, Add(a, K(s[0])));
+    Write8(out, 4, Add(b, K(s[1])));
+    Write8(out, 8, Add(c, K(s[2])));
+    Write8(out, 12, Add(d, K(s[3])));
+    Write8(out, 16, Add(e, K(s[4])));
+    Write8(out, 20, Add(f, K(s[5])));
+    Write8(out, 24, Add(g, K(s[6])));
+    Write8(out, 28, Add(h, K(s[7])));
+}
+
+}
+
+namespace sha256d64_avx2 {
 
 void Transform_8way(unsigned char* out, const unsigned char* in)
 {

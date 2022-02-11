@@ -32,6 +32,10 @@ namespace sha256d64_sse41
 void Transform_4way(unsigned char* out, const unsigned char* in);
 }
 
+namespace sha256multi_avx2
+{
+void Transform_8way(unsigned char* out, const uint32_t* s, const unsigned char* in);
+}
 namespace sha256d64_avx2
 {
 void Transform_8way(unsigned char* out, const unsigned char* in);
@@ -630,6 +634,7 @@ std::string SHA256AutoDetect()
 
 #if !defined(BUILD_BITCOIN_INTERNAL)
     if (have_avx2 && have_avx && enabled_avx) {
+        Transform_8way = sha256multi_avx2::Transform_8way;
         TransformD64_8way = sha256d64_avx2::Transform_8way;
         ret += ",avx2(8way)";
     }
