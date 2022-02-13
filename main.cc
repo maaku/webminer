@@ -455,7 +455,9 @@ void mining_thread_func(int id)
 #ifdef USE_OPENSSL_ASM
                 // (Re-)set the pointer to midstate before hashing the nonce
                 sha256_final = sha256_mid;
-                SHA256_Update(&sha256_final, (unsigned char*)nonce_b64.data(), nonce_b64.size());
+                SHA256_Update(&sha256_final, (unsigned char*)nonces + 4*j, 4);
+                SHA256_Update(&sha256_final, (unsigned char*)nonces + 4*i, 4);
+                SHA256_Update(&sha256_final, (unsigned char*)final, 4);
                 SHA256_Final(hash.begin(), &sha256_final);
 #else
                 CSHA256(midstate)
