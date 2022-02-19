@@ -401,14 +401,17 @@ void mining_thread_func(int id)
         CSHA256 midstate;
         midstate.Write((unsigned char*)prefix_b64.data(), prefix_b64.size());
 
-        unsigned char hashes[8*32] = {0};
+        const int W = 25*8;
+        unsigned char hashes[W*32] = {0};
         for (int i = 0; i < 1000; ++i) {
-            for (int j = 0; j < 1000; j += 8) {
-                g_attempts += 8;
+            for (int j = 0; j < 1000; j += W) {
+                g_attempts += W;
 
-                midstate.WriteAndFinalize8((const unsigned char*)nonces + 4*i, (const unsigned char*)nonces + 4*j, (const unsigned char*)final, hashes);
+                for (int k = 0; k < W; k += 8) {
+                    midstate.WriteAndFinalize8((const unsigned char*)nonces + 4*i, (const unsigned char*)nonces + 4*(j+k), (const unsigned char*)final, hashes + k*32);
+                }
 
-                for (int k = 0; k < 8; ++k) {
+                for (int k = 0; k < W; ++k) {
                     if (!(*(const uint16_t*)(hashes + k*32))) {
                         uint256 hash({hashes + k*32, hashes + k*32 + 32});
                         if (check_proof_of_work(hash, g_difficulty)) {
