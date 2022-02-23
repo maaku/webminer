@@ -15,7 +15,7 @@ Further optimizations are possible, and will be implemented in time.
 To compile webminer, a C++ compiler and a few standard developer tools are required.  On Ubuntu you can install the required dependencies with the following command:
 
 ```
-sudo apt-get install build-essential autoconf automake libtool cmake
+sudo apt-get install build-essential autoconf automake libtool
 ```
 
 You will also need Google's bazel build tool, which is not available from the default Ubuntu package repositories.  Instructions for installing bazel are available at the official bazel website: https://bazel.build
@@ -23,7 +23,7 @@ You will also need Google's bazel build tool, which is not available from the de
 On macOS the build environment can be prepared by installing XCode (with the command-line developer tools), then fetching the required dependencies with homebrew:
 
 ```
-brew install autoconf automake libtool cmake bazel
+brew install autoconf automake libtool bazel
 ```
 
 To build webminer, open a shell and navigate to directory containing the source code and execute this command:
