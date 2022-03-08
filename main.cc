@@ -76,19 +76,22 @@ bool get_protocol_settings(ProtocolSettings& settings)
         return false;
     }
     const UniValue& mining_amount = o["mining_amount"];
-    if (!mining_amount.isNum()) {
-        std::cerr << "Error: expected integer for 'mining_amount' field of ProtocolSettings response, got '" << mining_amount.write() << "' instead." << std::endl;
+    if (!mining_amount.isStr()) {
+        std::cerr << "Error: expected string for 'mining_amount' field of ProtocolSettings response, got '" << mining_amount.write() << "' instead." << std::endl;
         return false;
     }
     const UniValue& subsidy_amount = o["mining_subsidy_amount"];
-    if (!subsidy_amount.isNum()) {
-        std::cerr << "Error: expected integer for 'subsidy_amount' field of ProtocolSettings response, got '" << subsidy_amount.write() << "' instead." << std::endl;
+    if (!subsidy_amount.isStr()) {
+        std::cerr << "Error: expected string for 'subsidy_amount' field of ProtocolSettings response, got '" << subsidy_amount.write() << "' instead." << std::endl;
         return false;
     }
     settings.difficulty = difficulty.get_int();
     settings.ratio = ratio.get_real();
-    settings.mining_amount = mining_amount.get_int64();
-    settings.subsidy_amount = subsidy_amount.get_int64();
+
+    // TODO: use decimal-precise floats?
+    settings.mining_amount = std::stoi(mining_amount.get_str());
+    settings.subsidy_amount = std::stoi(subsidy_amount.get_str());
+
     return true;
 }
 
