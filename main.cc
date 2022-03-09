@@ -39,9 +39,9 @@
 
 struct ProtocolSettings {
     // The amount the miner is allowed to claim.
-    int64_t mining_amount;
+    Amount mining_amount;
     // The amount which is surrendered to the server operator.
-    int64_t subsidy_amount;
+    Amount subsidy_amount;
     // The ratio of initial issuance distributed to expected amount.
     float ratio;
     // The number of leading bits which must be zero for a work candidate to be
@@ -92,20 +92,22 @@ bool get_protocol_settings(ProtocolSettings& settings)
         std::cerr << "Error: expected real number for 'ratio' field of ProtocolSettings response, got '" << ratio.write() << "' instead." << std::endl;
         return false;
     }
-    const UniValue& mining_amount = o["mining_amount"];
-    if (!mining_amount.isNum()) {
-        std::cerr << "Error: expected integer for 'mining_amount' field of ProtocolSettings response, got '" << mining_amount.write() << "' instead." << std::endl;
+    const std::string mining_amount_str = o["mining_amount"].write();
+    Amount mining_amount = -1;
+    if (!mining_amount.parse(mining_amount_str) || mining_amount < 0) {
+        std::cerr << "Error: expected fractional-precision numeric value for 'mining_amount' field of ProtocolSettings response, got '" << mining_amount_str << "' instead." << std::endl;
         return false;
     }
-    const UniValue& subsidy_amount = o["mining_subsidy_amount"];
-    if (!subsidy_amount.isNum()) {
-        std::cerr << "Error: expected integer for 'subsidy_amount' field of ProtocolSettings response, got '" << subsidy_amount.write() << "' instead." << std::endl;
+    const std::string subsidy_amount_str = o["mining_subsidy_amount"].write();
+    Amount subsidy_amount = -1;
+    if (!subsidy_amount.parse(subsidy_amount_str) || subsidy_amount < 0) {
+        std::cerr << "Error: expected fractional-precision numeric value for 'subsidy_amount' field of ProtocolSettings response, got '" << subsidy_amount_str << "' instead." << std::endl;
         return false;
     }
     settings.difficulty = difficulty.get_int();
     settings.ratio = ratio.get_real();
-    settings.mining_amount = mining_amount.get_int64();
-    settings.subsidy_amount = subsidy_amount.get_int64();
+    settings.mining_amount = mining_amount;
+    settings.subsidy_amount = subsidy_amount;
     return true;
 }
 
@@ -205,8 +207,8 @@ std::mutex g_state_mutex;
 std::unique_ptr<Wallet> g_wallet;
 std::deque<Solution> g_solutions;
 std::atomic<int> g_difficulty{16};
-std::atomic<int64_t> g_mining_amount{20000};
-std::atomic<int64_t> g_subsidy_amount{1000};
+std::atomic<Amount> g_mining_amount{20000};
+std::atomic<Amount> g_subsidy_amount{1000};
 std::atomic<int64_t> g_attempts{0};
 absl::Time g_last_rng_update{absl::UnixEpoch()};
 absl::Time g_next_rng_update{absl::UnixEpoch()};
