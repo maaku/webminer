@@ -66,6 +66,15 @@ std::optional<std::string> get_terms_of_service()
     return r->body;
 }
 
+static std::string amount_to_string(const UniValue& val)
+{
+    if (val.isStr()) {
+        return val.get_str();
+    } else {
+        return val.write();
+    }
+}
+
 bool get_protocol_settings(ProtocolSettings& settings)
 {
     httplib::Client cli("https://webcash.tech");
@@ -92,13 +101,13 @@ bool get_protocol_settings(ProtocolSettings& settings)
         std::cerr << "Error: expected real number for 'ratio' field of ProtocolSettings response, got '" << ratio.write() << "' instead." << std::endl;
         return false;
     }
-    const std::string mining_amount_str = o["mining_amount"].write();
+    const std::string mining_amount_str = amount_to_string(o["mining_amount"]);
     Amount mining_amount = -1;
     if (!mining_amount.parse(mining_amount_str) || mining_amount < 0) {
         std::cerr << "Error: expected fractional-precision numeric value for 'mining_amount' field of ProtocolSettings response, got '" << mining_amount_str << "' instead." << std::endl;
         return false;
     }
-    const std::string subsidy_amount_str = o["mining_subsidy_amount"].write();
+    const std::string subsidy_amount_str = amount_to_string(o["mining_subsidy_amount"]);
     Amount subsidy_amount = -1;
     if (!subsidy_amount.parse(subsidy_amount_str) || subsidy_amount < 0) {
         std::cerr << "Error: expected fractional-precision numeric value for 'subsidy_amount' field of ProtocolSettings response, got '" << subsidy_amount_str << "' instead." << std::endl;
