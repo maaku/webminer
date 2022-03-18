@@ -186,6 +186,7 @@ void update_thread_func()
 
     bool update_rng = true;
     bool fetch_settings = true;
+    bool first_run = true;
 
     while (!g_shutdown) {
         absl::Time current_time = absl::Now();
@@ -207,11 +208,14 @@ void update_thread_func()
             int64_t attempts = g_attempts.exchange(0);
             ProtocolSettings settings;
             if (get_protocol_settings(settings)) {
-                std::cout << "server says"
-                          << " difficulty=" << settings.difficulty
-                          << " ratio=" << settings.ratio
-                          << " speed=" << get_speed_string(attempts, g_last_settings_fetch, current_time)
-                          << std::endl;
+                if (!first_run) {
+                    std::cout << "server says"
+                              << " difficulty=" << settings.difficulty
+                              << " ratio=" << settings.ratio
+                              << " speed=" << get_speed_string(attempts, g_last_settings_fetch, current_time)
+                              << std::endl;
+                }
+                first_run = false;
                 g_difficulty = settings.difficulty;
                 g_mining_amount = settings.mining_amount;
                 g_subsidy_amount = settings.subsidy_amount;
