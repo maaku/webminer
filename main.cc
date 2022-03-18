@@ -148,6 +148,29 @@ std::string get_speed_string(int64_t attempts, absl::Time begin, absl::Time end)
     return std::to_string(speed / 1e12f) + " Thps";
 }
 
+std::string get_expect_string(int64_t attempts, absl::Time begin, absl::Time end, int difficulty) {
+    double speed = attempts / absl::ToDoubleSeconds(end - begin);
+    double expect = absl::Int128Low64(1) << difficulty;
+    int sec = std::lround(expect / speed);
+    int min = sec / 60;
+    int hr = min / 60;
+    int day = hr / 24;
+    std::string res;
+    if (day) {
+        res += std::to_string(day) + "d ";
+    }
+    if (hr) {
+        res += std::to_string(hr % 24) + "h ";
+    }
+    if (min) {
+        res += std::to_string(min % 60) + "m ";
+    }
+    if (sec) {
+        res += std::to_string(sec % 60) + "s";
+    }
+    return res;
+}
+
 std::condition_variable g_update_thread_cv;
 std::atomic<bool> g_shutdown{false};
 
@@ -213,6 +236,7 @@ void update_thread_func()
                               << " difficulty=" << settings.difficulty
                               << " ratio=" << settings.ratio
                               << " speed=" << get_speed_string(attempts, g_last_settings_fetch, current_time)
+                              << " expect=" << get_expect_string(attempts, g_last_settings_fetch, current_time, settings.difficulty)
                               << std::endl;
                 }
                 first_run = false;
