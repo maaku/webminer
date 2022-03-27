@@ -44,9 +44,8 @@ bool Amount::parse(const absl::string_view& str) {
     auto pos = str.begin();
     absl::int128 i = 0;
 
-    bool negative = false;
-    if (*pos == '-') {
-        negative = true;
+    bool negative = (*pos == '-');
+    if (negative) {
         ++pos;
         // A single minus sign is not a valid encoding.
         if (pos == str.end()) {
