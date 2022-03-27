@@ -199,6 +199,7 @@ absl::Time g_next_settings_fetch{absl::UnixEpoch()};
 ABSL_FLAG(std::string, webcashlog, "webcash.log", "filename to place generated webcash claim codes");
 ABSL_FLAG(std::string, orphanlog, "orphans.log", "filename to place solved proof-of-works the server rejects, and their associated webcash claim codes");
 ABSL_FLAG(std::string, walletfile, "default_wallet", "base filename of wallet files");
+ABSL_FLAG(unsigned, workers, 0, "number of mining threads to spawn");
 
 void update_thread_func()
 {
@@ -465,8 +466,6 @@ void mining_thread_func(int id)
         }
     }
 }
-
-ABSL_FLAG(unsigned, workers, 0, "number of mining threads to spawn");
 
 int main(int argc, char **argv)
 {
