@@ -154,6 +154,18 @@ cc_library(
     ]
 )
 
+cc_test(
+    name = "wallet_tests",
+    size = "small",
+    srcs = [
+        "test/wallet.cc",
+    ],
+    deps = [
+        "@com_google_googletest//:gtest_main",
+        ":wallet",
+    ]
+)
+
 load("@rules_cc//cc:defs.bzl", "cc_binary")
 
 cc_binary(

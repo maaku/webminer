@@ -32,6 +32,14 @@ git_repository(
     shallow_since = "1641854268 +0000",
 )
 
+# googletest source code repository
+git_repository(
+    name = "com_google_googletest",
+    remote = "https://github.com/google/googletest",
+    commit = "e2239ee6043f73722e7aa812a459f54a28552929",
+    shallow_since = "1623433346 -0700",
+)
+
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 http_archive(

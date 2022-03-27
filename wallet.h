@@ -21,16 +21,38 @@
 #include "boost/filesystem.hpp"
 #include "boost/interprocess/sync/file_lock.hpp"
 
+struct Amount {
+    int64_t i64;
+
+    Amount() : i64(0) {}
+    Amount(int64_t _i64) : i64(_i64) {}
+
+    bool parse(const absl::string_view& str);
+};
+
+inline bool operator==(const Amount& lhs, const Amount& rhs) { return lhs.i64 == rhs.i64; }
+inline bool operator!=(const Amount& lhs, const Amount& rhs) { return lhs.i64 != rhs.i64; }
+
+inline bool operator<(const Amount& lhs, const Amount& rhs) { return lhs.i64 < rhs.i64; }
+inline bool operator<=(const Amount& lhs, const Amount& rhs) { return lhs.i64 <= rhs.i64; }
+inline bool operator>=(const Amount& lhs, const Amount& rhs) { return lhs.i64 >= rhs.i64; }
+inline bool operator>(const Amount& lhs, const Amount& rhs) { return lhs.i64 > rhs.i64; }
+
+inline Amount operator-(const Amount& lhs, const Amount& rhs) { return Amount(lhs.i64 - rhs.i64); }
+inline Amount operator+(const Amount& lhs, const Amount& rhs) { return Amount(lhs.i64 + rhs.i64); }
+
+std::string to_string(const Amount& amt);
+
 struct SecretWebcash {
     uint256 sk;
-    int64_t amount;
+    Amount amount;
 };
 
 std::string to_string(const SecretWebcash& esk);
 
 struct PublicWebcash {
     uint256 pk;
-    int64_t amount;
+    Amount amount;
 
     PublicWebcash(const SecretWebcash& esk)
         : amount(esk.amount)
