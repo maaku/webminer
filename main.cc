@@ -49,6 +49,23 @@ struct ProtocolSettings {
     int difficulty;
 };
 
+std::optional<std::string> get_terms_of_service()
+{
+    httplib::Client cli("https://webcash.tech");
+    cli.set_read_timeout(60, 0); // 60 seconds
+    cli.set_write_timeout(60, 0); // 60 seconds
+    auto r = cli.Get("/terms/text");
+    if (!r) {
+        std::cerr << "Error: returned invalid response to terms of service request: " << r.error() << std::endl;
+        return std::nullopt;
+    }
+    if (r->status != 200) {
+        std::cerr << "Error: returned invalid response to terms of service request: status_code=" << r->status << ", text='" << r->body << "'" << std::endl;
+        return std::nullopt;
+    }
+    return r->body;
+}
+
 bool get_protocol_settings(ProtocolSettings& settings)
 {
     httplib::Client cli("https://webcash.tech");
@@ -196,6 +213,7 @@ absl::Time g_next_rng_update{absl::UnixEpoch()};
 absl::Time g_last_settings_fetch{absl::UnixEpoch()};
 absl::Time g_next_settings_fetch{absl::UnixEpoch()};
 
+ABSL_FLAG(bool, acceptterms, false, "auto-accept initial or updated terms of service");
 ABSL_FLAG(std::string, webcashlog, "webcash.log", "filename to place generated webcash claim codes");
 ABSL_FLAG(std::string, orphanlog, "orphans.log", "filename to place solved proof-of-works the server rejects, and their associated webcash claim codes");
 ABSL_FLAG(std::string, walletfile, "default_wallet", "base filename of wallet files");
@@ -287,9 +305,11 @@ void update_thread_func()
             httplib::Client cli("https://webcash.tech");
             cli.set_read_timeout(60, 0); // 60 seconds
             cli.set_write_timeout(60, 0); // 60 seconds
+            // Acceptance of terms of service is hard-coded here because it is
+            // checked for on startup.
             auto r = cli.Post(
                 "/api/v1/mining_report",
-                absl::StrCat("{\"preimage\": \"", soln.preimage, "\", \"work\": ", work, "}"),
+                absl::StrCat("{\"preimage\": \"", soln.preimage, "\", \"work\": ", work, ", \"legalese\": {\"terms\": true}}"),
                 "application/json");
 
             // Handle network errors by aborting further processing
@@ -420,7 +440,9 @@ void mining_thread_func(int id)
         GetStrongRandBytes(subsidy.sk.begin(), 32);
 
         std::string subsidy_str = to_string(subsidy);
-        std::string prefix = absl::StrCat("{\"webcash\": [\"", to_string(keep), "\", \"", subsidy_str, "\"], \"subsidy\": [\"", subsidy_str, "\"], \"difficulty\": ", to_string(g_difficulty), ", \"timestamp\": ", to_string(absl::ToDoubleSeconds(absl::Now() - absl::UnixEpoch())), ", \"nonce\": ");
+        // The miner won't get this far if the terms of service aren't agreed
+        // to, so we can safely hard-code acceptance here.
+        std::string prefix = absl::StrCat("{\"legalese\": {\"terms\": true}, \"webcash\": [\"", to_string(keep), "\", \"", subsidy_str, "\"], \"subsidy\": [\"", subsidy_str, "\"], \"difficulty\": ", to_string(g_difficulty), ", \"timestamp\": ", to_string(absl::ToDoubleSeconds(absl::Now() - absl::UnixEpoch())), ", \"nonce\": ");
         // Extend the prefix to be a multiple of 48 in size...
         prefix.resize(48 * (1 + prefix.size() / 48), ' ');
         prefix.back() = '1';
@@ -471,20 +493,43 @@ int main(int argc, char **argv)
 {
     absl::SetProgramUsageMessage(absl::StrCat("Webcash mining daemon.\n", argv[0]));
     absl::ParseCommandLine(argc, argv);
-    int num_workers = absl::GetFlag(FLAGS_workers);
-    if (num_workers > 256) {
-        std::cerr << "Error: --workers cannot be larger than 256" << std::endl;
+
+    // Open the wallet file, which will throw an error if the walletfile
+    // parameter is unusable.
+    g_wallet = std::unique_ptr<Wallet>(new Wallet(absl::GetFlag(FLAGS_walletfile)));
+    if (!g_wallet) {
+        std::cerr << "Error: Unable to open wallet." << std::endl;
         return 1;
     }
-    if (num_workers == 0) {
-        num_workers = std::thread::hardware_concurrency();
-        if (num_workers != 0) {
-            std::cout << "Auto-detected the hardware concurrency to be " << num_workers << std::endl;
-        } else {
-            std::cout << "Could not auto-detect the hardware concurrency; assuming a value of 1" << std::endl;
-            num_workers = 1;
-        }
+
+    std::cout << "Fetching current terms of service from server." << std::endl;
+    std::optional<std::string> terms = get_terms_of_service();
+    if (!terms) {
+        std::cerr << "Error: Unable to fetch terms of service from server." << std::endl;
+        return 1;
     }
+    bool accepted = g_wallet->AreTermsAccepted(*terms);
+    if (!accepted) {
+        if (absl::GetFlag(FLAGS_acceptterms)) {
+            std::cout << "Auto-accepting" << (g_wallet->HaveAcceptedTerms() ? " updated" : "") << " terms of service." << std::endl;
+        } else {
+            std::cout << std::endl
+                      << absl::StripAsciiWhitespace(*terms) << std::endl
+                      << std::endl
+                      << std::endl
+                      << "Do you accept these" << (g_wallet->HaveAcceptedTerms() ? " updated" : "") << " terms of service? (y/N): ";
+            std::string line;
+            std::getline(std::cin, line);
+            absl::string_view input = absl::StripLeadingAsciiWhitespace(line);
+            if (input.empty() || (absl::ascii_tolower(input[0]) != 'y')) {
+                std::cerr << "Error: Terms of service not accepted by user." << std::endl;
+                return 1;
+            }
+        }
+        g_wallet->AcceptTerms(*terms);
+    }
+    std::cout << "Terms of service" << (accepted ? " already" : "") << " accepted." << std::endl;
+
     {
         // Touch the wallet file, which will create it if it doesn't
         // already exist.  The file locking primitives assume that the
@@ -500,18 +545,25 @@ int main(int argc, char **argv)
         orphan_log.flush();
     }
 
-    // Open the wallet file, which will throw an error if the walletfile
-    // parameter is unusable.
-    g_wallet = std::unique_ptr<Wallet>(new Wallet(absl::GetFlag(FLAGS_walletfile)));
-    if (!g_wallet) {
-        std::cerr << "Error: Unable to open wallet." << std::endl;
-        return 1;
-    }
-
     RandomInit();
     if (!Random_SanityCheck()) {
         std::cerr << "Error: RNG sanity check failed. RNG is not secure." << std::endl;
         return 1;
+    }
+
+    int num_workers = absl::GetFlag(FLAGS_workers);
+    if (num_workers > 1024) {
+        std::cerr << "Error: --workers cannot be larger than 1024" << std::endl;
+        return 1;
+    }
+    if (num_workers == 0) {
+        num_workers = std::thread::hardware_concurrency();
+        if (num_workers != 0) {
+            std::cout << "Auto-detected the hardware concurrency to be " << num_workers << std::endl;
+        } else {
+            std::cout << "Could not auto-detect the hardware concurrency; assuming a value of 1" << std::endl;
+            num_workers = 1;
+        }
     }
 
     const std::string algo = SHA256AutoDetect();
