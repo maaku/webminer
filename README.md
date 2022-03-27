@@ -6,7 +6,7 @@ Webminer is tested and known to work on recent versions of macOS and Linux.  It 
 
 # Performance
 
-Unlike the official Webcash miner which is written in unoptimized Python, webminer is written in hand-tuned C++ and uses x86 vector SIMD extensions to accelerate SHA256 calculations.  On this author's Intel CPU the official Python miner is able to achieve approximately 12.5 khps.  A single-threaded webminer instance on the same machine is able to mine approximately 1445 khps, for a total speedup of over 115x.
+Unlike the official Webcash miner which is written in unoptimized Python, webminer is written in hand-tuned C++ and uses x86 vector SIMD extensions to accelerate SHA256 calculations.  On this author's Intel CPU the official Python miner is able to achieve approximately 15.5 khps.  A single-threaded webminer instance on the same machine is able to mine approximately 22.65 Mhps, for a total speedup of over 1460x.
 
 Further optimizations are possible, and will be implemented in time.
 
