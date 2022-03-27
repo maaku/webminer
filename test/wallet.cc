@@ -16,9 +16,20 @@ TEST(amount, parase) {
     }
     {
         Amount amt;
+        EXPECT_TRUE(amt.parse("\"0.1\""));
+        EXPECT_EQ(amt.i64, 10000000);
+    }
+    {
+        Amount amt;
         EXPECT_TRUE(amt.parse("0.00000001"));
         EXPECT_EQ(amt.i64, 1);
         EXPECT_FALSE(amt.parse("0.000000001"));
+    }
+    {
+        Amount amt;
+        EXPECT_TRUE(amt.parse("\"0.00000001\""));
+        EXPECT_EQ(amt.i64, 1);
+        EXPECT_FALSE(amt.parse("\"0.000000001\""));
     }
     {
         Amount amt;
@@ -27,8 +38,21 @@ TEST(amount, parase) {
     }
     {
         Amount amt;
+        EXPECT_TRUE(amt.parse("\"30\""));
+        EXPECT_EQ(amt.i64, 3000000000);
+    }
+    {
+        Amount amt;
         EXPECT_TRUE(amt.parse("30.0"));
         EXPECT_EQ(amt.i64, 3000000000);
+    }
+    {
+        Amount amt;
+        EXPECT_TRUE(amt.parse("\"30.0\""));
+        EXPECT_EQ(amt.i64, 3000000000);
+        EXPECT_FALSE(amt.parse("\"\"30.0\""));
+        EXPECT_FALSE(amt.parse("\"\"30.0\"\""));
+        EXPECT_FALSE(amt.parse("\"\"30\".0\""));
     }
 }
 

@@ -42,13 +42,26 @@ bool Amount::parse(const absl::string_view& str) {
     }
 
     auto pos = str.begin();
+    auto end = str.end();
     absl::int128 i = 0;
+
+    if (*pos == '"') {
+        do {
+            --end;
+        } while (*end != '"');
+        // An opening quote and nothing else is not a valid encoding.
+        if (pos == end) {
+            return false;
+        }
+        // Advance pos past the opening quote.
+        ++pos;
+    }
 
     bool negative = (*pos == '-');
     if (negative) {
         ++pos;
         // A single minus sign is not a valid encoding.
-        if (pos == str.end()) {
+        if (pos == end) {
             return false;
         }
     }
@@ -58,11 +71,11 @@ bool Amount::parse(const absl::string_view& str) {
         return false;
     }
     // But in that case the next character must be a decimal point.
-    if (pos[0] == '0' && (pos + 1) != str.end() && pos[1] != '.') {
+    if (pos[0] == '0' && (pos + 1) != end && pos[1] != '.') {
         return false;
     }
 
-    for (; pos != str.end() && absl::ascii_isdigit(*pos); ++pos) {
+    for (; pos != end && absl::ascii_isdigit(*pos); ++pos) {
         i *= 10;
         i += (*pos - '0');
         // Overflow check
@@ -73,18 +86,18 @@ bool Amount::parse(const absl::string_view& str) {
 
     // Fractional digits are optional.
     int j = 0;
-    if (pos != str.end()) {
+    if (pos != end) {
         // Skip past the decimal point.
         if (*pos != '.') {
             return false;
         }
         ++pos;
         // If there is a decimal point, there must be at least one digit.
-        if (pos == str.end()) {
+        if (pos == end) {
             return false;
         }
         // Read up to 8 digits
-        for (; j < 8 && pos != str.end(); ++j, ++pos) {
+        for (; j < 8 && pos != end; ++j, ++pos) {
             if (!absl::ascii_isdigit(*pos)) {
                 return false;
             }
@@ -92,7 +105,7 @@ bool Amount::parse(const absl::string_view& str) {
             i += (*pos - '0');
         }
         // We must now be at the end of the input
-        if (pos != str.end()) {
+        if (pos != end) {
             return false;
         }
     }
