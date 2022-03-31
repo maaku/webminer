@@ -19,6 +19,8 @@
 #include "absl/strings/escaping.h"
 #include "absl/strings/string_view.h"
 
+#include "absl/time/time.h"
+
 #include "boost/filesystem.hpp"
 #include "boost/interprocess/sync/file_lock.hpp"
 
@@ -75,6 +77,9 @@ protected:
     sqlite3* m_db;
 
     void UpgradeDatabase();
+
+    int AddSecretToWallet(absl::Time timestamp, const SecretWebcash& sk, bool mine, bool sweep);
+    int AddOutputToWallet(absl::Time timestamp, const PublicWebcash& pk, int secret_id, bool spent);
 
 public:
     Wallet(const boost::filesystem::path& path);
