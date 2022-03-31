@@ -10,6 +10,8 @@
 
 #include <mutex>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "crypto/sha256.h"
 #include "sqlite3.h"
@@ -31,6 +33,9 @@ struct Amount {
     Amount(int64_t _i64) : i64(_i64) {}
 
     bool parse(const absl::string_view& str);
+
+    inline Amount& operator+=(const Amount& rhs) { i64 += rhs.i64; return *this; }
+    inline Amount& operator-=(const Amount& rhs) { i64 -= rhs.i64; return *this; }
 };
 
 inline bool operator==(const Amount& lhs, const Amount& rhs) { return lhs.i64 == rhs.i64; }
@@ -49,14 +54,19 @@ std::string to_string(const Amount& amt);
 struct SecretWebcash {
     SecureString sk;
     Amount amount;
+
+    SecretWebcash() {}
+    SecretWebcash(Amount _amount, const std::string& _sk) : sk(_sk), amount(_amount) {}
 };
 
-std::string to_string(const SecretWebcash& esk);
+SecureString to_string(const SecretWebcash& esk);
 
 struct PublicWebcash {
     uint256 pk;
     Amount amount;
 
+    PublicWebcash() {}
+    PublicWebcash(Amount _amount, const uint256& _pk) : pk(_pk), amount(_amount) {}
     PublicWebcash(const SecretWebcash& esk)
         : amount(esk.amount)
     {
@@ -67,6 +77,23 @@ struct PublicWebcash {
 };
 
 std::string to_string(const PublicWebcash& epk);
+
+struct WalletSecret {
+    int id;
+    absl::Time timestamp;
+    std::string secret;
+    bool mine;
+    bool sweep;
+};
+
+struct WalletOutput {
+    int id;
+    absl::Time timestamp;
+    uint256 hash;
+    std::unique_ptr<WalletSecret> secret;
+    Amount amount;
+    bool spent;
+};
 
 class Wallet {
 protected:
@@ -80,6 +107,8 @@ protected:
 
     int AddSecretToWallet(absl::Time timestamp, const SecretWebcash& sk, bool mine, bool sweep);
     int AddOutputToWallet(absl::Time timestamp, const PublicWebcash& pk, int secret_id, bool spent);
+
+    std::vector<std::pair<WalletSecret, int>> ReplaceWebcash(absl::Time timestamp, std::vector<WalletOutput>& inputs, const std::vector<std::pair<WalletSecret, Amount>>& outputs);
 
 public:
     Wallet(const boost::filesystem::path& path);
