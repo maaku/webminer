@@ -13,6 +13,7 @@
 
 #include "crypto/sha256.h"
 #include "sqlite3.h"
+#include "support/allocators/secure.h"
 #include "uint256.h"
 
 #include "absl/strings/escaping.h"
@@ -44,7 +45,7 @@ inline Amount operator+(const Amount& lhs, const Amount& rhs) { return Amount(lh
 std::string to_string(const Amount& amt);
 
 struct SecretWebcash {
-    uint256 sk;
+    SecureString sk;
     Amount amount;
 };
 
@@ -57,9 +58,8 @@ struct PublicWebcash {
     PublicWebcash(const SecretWebcash& esk)
         : amount(esk.amount)
     {
-        std::string hex = absl::BytesToHexString(absl::string_view((const char*)esk.sk.data(), esk.sk.size()));
         CSHA256()
-            .Write((const unsigned char*)hex.c_str(), hex.size())
+            .Write((const unsigned char*)esk.sk.c_str(), esk.sk.size())
             .Finalize(pk.data());
     }
 };

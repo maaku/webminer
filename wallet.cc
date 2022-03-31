@@ -145,13 +145,14 @@ std::string to_string(const Amount& amt) {
     return res;
 }
 
-static std::string webcash_string(Amount amount, const absl::string_view& type, const uint256& hash)
+template<class Str>
+static std::string webcash_string(Amount amount, const absl::string_view& type, const Str& hex)
 {
     using std::to_string;
     if (amount.i64 < 0) {
         amount.i64 = 0;
     }
-    return absl::StrCat("e", to_string(amount), ":", type, ":", absl::BytesToHexString(absl::string_view((const char*)hash.data(), hash.size())));
+    return absl::StrCat("e", to_string(amount), ":", type, ":", hex);
 }
 
 std::string to_string(const SecretWebcash& esk)
@@ -161,7 +162,8 @@ std::string to_string(const SecretWebcash& esk)
 
 std::string to_string(const PublicWebcash& epk)
 {
-    return webcash_string(epk.amount, "public", epk.pk);
+    std::string hex = absl::BytesToHexString(absl::string_view((const char*)epk.pk.data(), epk.pk.size()));
+    return webcash_string(epk.amount, "public", hex);
 }
 
 // We group outputs based on their use.  There are currently four categories of
@@ -365,10 +367,9 @@ bool Wallet::Insert(const SecretWebcash& sk, bool mine)
         sqlite3_finalize(insert);
         return false;
     }
-    const std::string secret_hex = absl::BytesToHexString(absl::string_view((const char*)sk.sk.begin(), 32));
-    res = sqlite3_bind_text(insert, 2, secret_hex.c_str(), secret_hex.size(), SQLITE_STATIC);
+    res = sqlite3_bind_text(insert, 2, sk.sk.c_str(), sk.sk.size(), SQLITE_STATIC);
     if (res != SQLITE_OK) {
-        std::cerr << "Unable to bind 'secret' in SQL statement [\"" << stmt << "\"] to x'" << absl::BytesToHexString(absl::string_view((const char*)sk.sk.begin(), 32)) << "': " << sqlite3_errstr(res) << " (" << to_string(res) << ")" << std::endl;
+        std::cerr << "Unable to bind 'secret' in SQL statement [\"" << stmt << "\"] to x'" << sk.sk << "': " << sqlite3_errstr(res) << " (" << to_string(res) << ")" << std::endl;
         sqlite3_finalize(insert);
         return false;
     }
