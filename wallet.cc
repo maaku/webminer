@@ -145,13 +145,14 @@ std::string to_string(const Amount& amt) {
     return res;
 }
 
-static std::string webcash_string(Amount amount, const absl::string_view& type, const uint256& hash)
+template<class Str>
+static std::string webcash_string(Amount amount, const absl::string_view& type, const Str& hex)
 {
     using std::to_string;
     if (amount.i64 < 0) {
         amount.i64 = 0;
     }
-    return absl::StrCat("e", to_string(amount), ":", type, ":", absl::BytesToHexString(absl::string_view((const char*)hash.data(), hash.size())));
+    return absl::StrCat("e", to_string(amount), ":", type, ":", hex);
 }
 
 std::string to_string(const SecretWebcash& esk)
@@ -161,7 +162,8 @@ std::string to_string(const SecretWebcash& esk)
 
 std::string to_string(const PublicWebcash& epk)
 {
-    return webcash_string(epk.amount, "public", epk.pk);
+    std::string hex = absl::BytesToHexString(absl::string_view((const char*)epk.pk.data(), epk.pk.size()));
+    return webcash_string(epk.amount, "public", hex);
 }
 
 void Wallet::UpgradeDatabase()

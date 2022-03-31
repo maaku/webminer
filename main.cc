@@ -34,6 +34,7 @@
 
 #include "crypto/sha256.h"
 #include "random.h"
+#include "support/cleanse.h"
 #include "uint256.h"
 #include "wallet.h"
 
@@ -460,13 +461,17 @@ void mining_thread_func(int id)
             continue;
         }
 
+        uint256 sk;
         SecretWebcash keep;
         keep.amount = g_mining_amount - g_subsidy_amount;
-        GetStrongRandBytes(keep.sk.begin(), 32);
+        GetStrongRandBytes(sk.begin(), 32);
+        keep.sk = absl::BytesToHexString(absl::string_view((const char*)sk.begin(), sk.size()));
 
         SecretWebcash subsidy;
         subsidy.amount = g_subsidy_amount;
-        GetStrongRandBytes(subsidy.sk.begin(), 32);
+        GetStrongRandBytes(sk.begin(), 32);
+        subsidy.sk = absl::BytesToHexString(absl::string_view((const char*)sk.begin(), sk.size()));
+        memory_cleanse(sk.begin(), 32);
 
         std::string subsidy_str = to_string(subsidy);
         // The miner won't get this far if the terms of service aren't agreed
