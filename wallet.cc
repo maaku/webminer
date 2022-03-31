@@ -226,10 +226,9 @@ bool Wallet::Insert(const SecretWebcash& sk, bool mine)
         sqlite3_finalize(insert);
         return false;
     }
-    const std::string secret_hex = absl::BytesToHexString(sk.sk);
-    res = sqlite3_bind_text(insert, 2, secret_hex.c_str(), secret_hex.size(), SQLITE_STATIC);
+    res = sqlite3_bind_text(insert, 2, sk.sk.c_str(), sk.sk.size(), SQLITE_STATIC);
     if (res != SQLITE_OK) {
-        std::cerr << "Unable to bind 'secret' in SQL statement [\"" << stmt << "\"] to x'" << absl::BytesToHexString(sk.sk) << "': " << sqlite3_errstr(res) << " (" << to_string(res) << ")" << std::endl;
+        std::cerr << "Unable to bind 'secret' in SQL statement [\"" << stmt << "\"] to x'" << sk.sk << "': " << sqlite3_errstr(res) << " (" << to_string(res) << ")" << std::endl;
         sqlite3_finalize(insert);
         return false;
     }
