@@ -11,6 +11,8 @@
 
 #include <mutex>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "absl/time/time.h"
 
@@ -18,6 +20,23 @@
 #include "boost/interprocess/sync/file_lock.hpp"
 
 #include "sqlite3.h"
+
+struct WalletSecret {
+    int id;
+    absl::Time timestamp;
+    std::string secret;
+    bool mine;
+    bool sweep;
+};
+
+struct WalletOutput {
+    int id;
+    absl::Time timestamp;
+    uint256 hash;
+    std::unique_ptr<WalletSecret> secret;
+    Amount amount;
+    bool spent;
+};
 
 class Wallet {
 protected:
@@ -31,6 +50,8 @@ protected:
 
     int AddSecretToWallet(absl::Time timestamp, const SecretWebcash& sk, bool mine, bool sweep);
     int AddOutputToWallet(absl::Time timestamp, const PublicWebcash& pk, int secret_id, bool spent);
+
+    std::vector<std::pair<WalletSecret, int>> ReplaceWebcash(absl::Time timestamp, std::vector<WalletOutput>& inputs, const std::vector<std::pair<WalletSecret, Amount>>& outputs);
 
 public:
     Wallet(const boost::filesystem::path& path);

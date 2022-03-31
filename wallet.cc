@@ -11,8 +11,15 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include <stdint.h>
+
+#include "absl/flags/declare.h"
+#include "absl/flags/flag.h"
+
+ABSL_DECLARE_FLAG(std::string, server);
 
 #include "absl/strings/str_cat.h"
 
@@ -23,7 +30,14 @@
 #include "boost/filesystem/fstream.hpp"
 #include "boost/interprocess/sync/file_lock.hpp"
 
+#define CPPHTTPLIB_OPENSSL_SUPPORT
+#include <httplib.h>
+
 #include "sqlite3.h"
+
+#include <univalue.h>
+
+#include "random.h"
 
 // We group outputs based on their use.  There are currently four categories of
 // webcash recognized by the wallet:
@@ -56,23 +70,6 @@ enum HashType : int {
     // mining inputs for change immediately after generation, in case the mining
     // reports (which contain the secret) are made public.
     MINING = 3,
-};
-
-struct WalletSecret;
-
-struct WalletOutput {
-    int id;
-    uint256 hash;
-    std::unique_ptr<WalletSecret> secret;
-    int64_t amount;
-    bool spent;
-};
-
-struct WalletSecret {
-    int id;
-    uint256 secret;
-    bool mine;
-    bool sweep;
 };
 
 void Wallet::UpgradeDatabase()
@@ -353,6 +350,136 @@ int Wallet::AddOutputToWallet(absl::Time _timestamp, const PublicWebcash& pk, in
     return output_id;
 }
 
+std::vector<std::pair<WalletSecret, int>> Wallet::ReplaceWebcash(absl::Time timestamp, std::vector<WalletOutput>& inputs, const std::vector<std::pair<WalletSecret, Amount>>& outputs)
+{
+    using std::to_string;
+
+    Amount total_in = 0;
+    UniValue in(UniValue::VARR);
+    if (inputs.empty()) {
+        std::cerr << "No inputs provided for replacement." << std::endl;
+        return {};
+    }
+    for (const WalletOutput& webcash : inputs) {
+        if (!webcash.secret) {
+            std::cerr << "Unable to replace output without corresponding secret: " << to_string(PublicWebcash(webcash.hash, webcash.amount)) << std::endl;
+            return {};
+        }
+        if (webcash.amount.i64 < 1) {
+            std::cerr << "Invalid amount for replacement intput: " << to_string(PublicWebcash(webcash.hash, webcash.amount)) << std::endl;
+        }
+        if (webcash.spent) {
+            std::cerr << "Replacement intput already spent: " << to_string(PublicWebcash(webcash.hash, webcash.amount)) << std::endl;
+            return {};
+        }
+        in.push_back(std::string(to_string(SecretWebcash(webcash.secret->secret, webcash.amount)).c_str()));
+        total_in += webcash.amount;
+    }
+
+    Amount total_out = 0;
+    UniValue out(UniValue::VARR);
+    if (outputs.empty()) {
+        std::cerr << "No outputs provided for replacement." << std::endl;
+        return {};
+    }
+    for (const std::pair<WalletSecret, Amount>& webcash : outputs) {
+        if (webcash.second.i64 < 1) {
+            std::cerr << "Invalid amount for replacement output: " << to_string(PublicWebcash(SecretWebcash(webcash.first.secret, webcash.second))) << std::endl;
+            return {};
+        }
+        out.push_back(std::string(to_string(SecretWebcash(webcash.first.secret, webcash.second)).c_str()));
+        total_out += webcash.second;
+    }
+
+    if (total_in != total_out) {
+        std::cerr << "Invalid replacement: sum(inputs) != sum(outputs) [" << to_string(total_in) << " != " << to_string(total_out) << "]" << std::endl;
+        return {};
+    }
+
+    // Acceptance of terms of service is hard-coded here because it is checked
+    // for on startup.
+    UniValue legalese(UniValue::VOBJ);
+    legalese.push_back(std::make_pair("terms", true));
+
+    UniValue replace(UniValue::VOBJ);
+    replace.push_back(std::make_pair("webcashes", in));
+    replace.push_back(std::make_pair("new_webcashes", out));
+    replace.push_back(std::make_pair("legalese", legalese));
+
+    // Submit replacement
+    const std::string server = absl::GetFlag(FLAGS_server);
+    httplib::Client cli(server);
+    cli.set_read_timeout(60, 0); // 60 seconds
+    cli.set_write_timeout(60, 0); // 60 seconds
+    auto r = cli.Post(
+        "/api/v1/replace",
+        replace.write(),
+        "application/json");
+
+    // Handle network errors by aborting further processing
+    if (!r) {
+        std::cerr << "Error: returned invalid response to Replace request: " << r.error() << std::endl;
+        std::cerr << "Possible transient error, or server timeout?  Cannot proceed." << std::endl;
+        return {};
+    }
+
+    // Parse response.
+    UniValue o;
+    o.read(r->body);
+
+    // Report server rejection to the user.
+    if (r->status != 200) {
+        std::cerr << "Error: returned invalid response to Replace request: status_code=" << r->status << ", text='" << r->body << "'" << std::endl;
+        return {};
+    }
+
+    // Blocking calls are done, now we update the database.
+    const std::lock_guard<std::mutex> lock(m_mut);
+
+    // Mark each input as spent.
+    for (WalletOutput& webcash : inputs) {
+        // Update the object.
+        webcash.spent = true;
+
+        // Update the database.
+        const std::string stmt = "UPDATE 'output' SET spent=TRUE WHERE id=?;";
+        sqlite3_stmt* update;
+        int res = sqlite3_prepare_v2(m_db, stmt.c_str(), stmt.size(), &update, nullptr);
+        if (res != SQLITE_OK) {
+            std::cerr << "Unable to prepare SQL statement [\"" << stmt << "\"]: " << sqlite3_errstr(res) << " (" << to_string(res) << ")" << std::endl;
+            continue;
+        }
+        res = sqlite3_bind_int(update, 1, webcash.id);
+        if (res != SQLITE_OK) {
+            std::cerr << "Unable to bind 'id' in SQL statement [\"" << stmt << "\"] to " << webcash.id << ": " << sqlite3_errstr(res) << " (" << to_string(res) << ")" << std::endl;
+            sqlite3_finalize(update);
+            continue;
+        }
+        res = sqlite3_step(update);
+        if (res != SQLITE_DONE) {
+            std::cerr << "Running SQL statement [\"" << sqlite3_expanded_sql(update) << "\"] returned unexpected status code: " << sqlite3_errstr(res) << " (" << to_string(res) << ")" << std::endl;
+            sqlite3_finalize(update);
+            continue;
+        }
+    }
+
+    // Create record for each output.
+    std::vector<std::pair<WalletSecret, int>> ret;
+    for (const std::pair<WalletSecret, Amount>& webcash : outputs) {
+        // Create database record.
+        int id = AddOutputToWallet(timestamp, PublicWebcash(SecretWebcash(webcash.first.secret, webcash.second)), webcash.first.id, false);
+        if (!id) {
+            std::cerr << "Error creating database record for replacement output: " << to_string(PublicWebcash(SecretWebcash(webcash.first.secret, webcash.second))) << std::endl;
+            continue;
+        }
+
+        // Save the database id for caller.
+        ret.push_back(std::make_pair(webcash.first, id));
+    }
+
+    return ret;
+}
+
 bool Wallet::Insert(const SecretWebcash& sk, bool mine)
 {
     using std::to_string;
@@ -367,10 +494,62 @@ bool Wallet::Insert(const SecretWebcash& sk, bool mine)
         return false;
     }
 
+    WalletSecret wsecret;
+    wsecret.id = secret_id;
+    wsecret.timestamp = now;
+    wsecret.secret = sk.sk;
+    wsecret.mine = mine;
+    wsecret.sweep = true;
+
     // Insert output record into the wallet db.
-    int output_id = AddOutputToWallet(now, PublicWebcash(sk), secret_id, false);
+    PublicWebcash pk(sk);
+    int output_id = AddOutputToWallet(now, pk, secret_id, false);
     if (!output_id) {
         std::cerr << "Error adding output to wallet; unable to proceed with insertion." << std::endl;
+        return false;
+    }
+
+    WalletOutput woutput;
+    woutput.id = output_id;
+    woutput.timestamp = now;
+    woutput.hash = pk.pk;
+    woutput.secret = std::make_unique<WalletSecret>(wsecret);
+    woutput.amount = pk.amount;
+    woutput.spent = false;
+
+    // Generate change address.
+    SecretWebcash change;
+    {
+        uint256 secret;
+        change.amount = sk.amount;
+        GetStrongRandBytes(secret.begin(), 32);
+        change.sk = absl::BytesToHexString(absl::string_view((const char*)secret.begin(), secret.size()));
+        memory_cleanse(secret.begin(), 32);
+    }
+
+    // Insert change address into the wallet db.
+    int change_id = AddSecretToWallet(now, change, true, false);
+    if (!change_id) {
+        std::cerr << "Error adding change secret to wallet; unable to proceed with replacement." << std::endl;
+        return false;
+    }
+
+    WalletSecret wchange;
+    wchange.id = change_id;
+    wchange.timestamp = now;
+    wchange.secret = change.sk;
+    wchange.mine = true;
+    wchange.sweep = false;
+
+    std::vector<WalletOutput> inputs;
+    inputs.emplace_back(std::move(woutput));
+
+    std::vector<std::pair<WalletSecret, Amount>> outputs;
+    outputs.emplace_back(wchange, change.amount);
+
+    std::vector<std::pair<WalletSecret, int>> res = ReplaceWebcash(now, inputs, outputs);
+    if (res.size() != 1) {
+        std::cerr << "Error executing replacement on server; keys are secured in wallet, but assuming replacement did not go through." << std::endl;
         return false;
     }
 

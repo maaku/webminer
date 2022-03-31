@@ -182,16 +182,16 @@ bool PublicWebcash::parse(
 }
 
 template<class Str>
-static std::string webcash_string(Amount amount, const absl::string_view& type, const Str& hex)
+static Str webcash_string(Amount amount, const absl::string_view& type, const Str& hex)
 {
     using std::to_string;
     if (amount.i64 < 0) {
         amount.i64 = 0;
     }
-    return absl::StrCat("e", to_string(amount), ":", type, ":", hex);
+    return Str(absl::StrCat("e", to_string(amount), ":", type, ":", hex));
 }
 
-std::string to_string(const SecretWebcash& esk)
+SecureString to_string(const SecretWebcash& esk)
 {
     return webcash_string(esk.amount, "secret", esk.sk);
 }

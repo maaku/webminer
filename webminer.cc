@@ -452,7 +452,7 @@ void mining_thread_func(int id)
         subsidy.sk = absl::BytesToHexString(absl::string_view((const char*)sk.begin(), sk.size()));
         memory_cleanse(sk.begin(), 32);
 
-        std::string subsidy_str = to_string(subsidy);
+        std::string subsidy_str = std::string(to_string(subsidy).c_str());
         // The miner won't get this far if the terms of service aren't agreed
         // to, so we can safely hard-code acceptance here.
         std::string prefix = absl::StrCat("{\"legalese\": {\"terms\": true}, \"webcash\": [\"", to_string(keep), "\", \"", subsidy_str, "\"], \"subsidy\": [\"", subsidy_str, "\"], \"difficulty\": ", to_string(g_difficulty), ", \"timestamp\": ", to_string(absl::ToDoubleSeconds(absl::Now() - absl::UnixEpoch())), ", \"nonce\": ");
