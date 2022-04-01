@@ -433,33 +433,32 @@ std::vector<std::pair<WalletSecret, int>> Wallet::ReplaceWebcash(absl::Time time
         return {};
     }
 
-    // Blocking calls are done, now we update the database.
-    const std::lock_guard<std::mutex> lock(m_mut);
-
-    // Mark each input as spent.
-    for (WalletOutput& webcash : inputs) {
-        // Update the object.
-        webcash.spent = true;
-
-        // Update the database.
-        const std::string stmt = "UPDATE 'output' SET spent=TRUE WHERE id=?;";
-        sqlite3_stmt* update;
-        int res = sqlite3_prepare_v2(m_db, stmt.c_str(), stmt.size(), &update, nullptr);
-        if (res != SQLITE_OK) {
-            std::cerr << "Unable to prepare SQL statement [\"" << stmt << "\"]: " << sqlite3_errstr(res) << " (" << to_string(res) << ")" << std::endl;
-            continue;
-        }
-        res = sqlite3_bind_int(update, 1, webcash.id);
-        if (res != SQLITE_OK) {
-            std::cerr << "Unable to bind 'id' in SQL statement [\"" << stmt << "\"] to " << webcash.id << ": " << sqlite3_errstr(res) << " (" << to_string(res) << ")" << std::endl;
-            sqlite3_finalize(update);
-            continue;
-        }
-        res = sqlite3_step(update);
-        if (res != SQLITE_DONE) {
-            std::cerr << "Running SQL statement [\"" << sqlite3_expanded_sql(update) << "\"] returned unexpected status code: " << sqlite3_errstr(res) << " (" << to_string(res) << ")" << std::endl;
-            sqlite3_finalize(update);
-            continue;
+    // Mark each input as spent in the database.
+    {
+        const std::lock_guard<std::mutex> lock(m_mut);
+        for (WalletOutput& webcash : inputs) {
+            // Update the object.
+            webcash.spent = true;
+            // Update the database.
+            const std::string stmt = "UPDATE 'output' SET spent=TRUE WHERE id=?;";
+            sqlite3_stmt* update;
+            int res = sqlite3_prepare_v2(m_db, stmt.c_str(), stmt.size(), &update, nullptr);
+            if (res != SQLITE_OK) {
+                std::cerr << "Unable to prepare SQL statement [\"" << stmt << "\"]: " << sqlite3_errstr(res) << " (" << to_string(res) << ")" << std::endl;
+                continue;
+            }
+            res = sqlite3_bind_int(update, 1, webcash.id);
+            if (res != SQLITE_OK) {
+                std::cerr << "Unable to bind 'id' in SQL statement [\"" << stmt << "\"] to " << webcash.id << ": " << sqlite3_errstr(res) << " (" << to_string(res) << ")" << std::endl;
+                sqlite3_finalize(update);
+                continue;
+            }
+            res = sqlite3_step(update);
+            if (res != SQLITE_DONE) {
+                std::cerr << "Running SQL statement [\"" << sqlite3_expanded_sql(update) << "\"] returned unexpected status code: " << sqlite3_errstr(res) << " (" << to_string(res) << ")" << std::endl;
+                sqlite3_finalize(update);
+                continue;
+            }
         }
     }
 
