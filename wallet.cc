@@ -74,7 +74,7 @@ enum HashType : int {
 
 void Wallet::UpgradeDatabase()
 {
-    std::array<std::string, 3> tables = {
+    std::array<std::string, 6> tables = {
         "CREATE TABLE IF NOT EXISTS 'terms' ("
             "'id' INTEGER PRIMARY KEY NOT NULL,"
             "'body' TEXT UNIQUE NOT NULL,"
@@ -93,6 +93,30 @@ void Wallet::UpgradeDatabase()
             "'amount' INTEGER NOT NULL,"
             "'spent' INTEGER NOT NULL,"
             "FOREIGN KEY('secret_id') REFERENCES 'secret'('id'));",
+        "CREATE TABLE IF NOT EXISTS 'hdroot' ("
+            "'id' INTEGER PRIMARY KEY NOT NULL,"
+            "'timestamp' INTEGER NOT NULL,"
+            "'version' INTEGER NOT NULL,"
+            "'secret' BLOB NOT NULL,"
+            "UNIQUE('version','secret'));",
+        "CREATE TABLE IF NOT EXISTS 'hdchain' ("
+            "'id' INTEGER PRIMARY KEY NOT NULL,"
+            "'hdroot_id' INTEGER NOT NULL,"
+            "'chaincode' INTEGER UNSIGNED NOT NULL," // <-- The upper 62 bits
+            "'mine' INTEGER NOT NULL,"      // <-- The lower 2 bits of chaincode
+            "'sweep' INTEGER NOT NULL,"     //     come from these two fields.
+            "'mindepth' INTEGER UNSIGNED NOT NULL,"
+            "'maxdepth' INTEGER UNSIGNED NOT NULL,"
+            "FOREIGN KEY('hdroot_id') REFERENCES 'hdroot'('id'),"
+            "UNIQUE('hdroot_id','chaincode','mine','sweep'));",
+        "CREATE TABLE IF NOT EXISTS 'hdkey' ("
+            "'id' INTEGER PRIMARY KEY NOT NULL,"
+            "'hdchain_id' INTEGER NOT NULL,"
+            "'depth' INTEGER UNSIGNED NOT NULL,"
+            "'secret_id' INTEGER UNIQUE NOT NULL,"
+            "FOREIGN KEY('hdchain_id') REFERENCES 'hdchain'('id'),"
+            "FOREIGN KEY('secret_id') REFERENCES 'secret'('id'),"
+            "UNIQUE('hdchain_id','depth'));",
     };
 
     for (const std::string& stmt : tables) {
