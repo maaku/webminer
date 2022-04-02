@@ -79,6 +79,12 @@ void Wallet::UpgradeDatabase()
             "'id' INTEGER PRIMARY KEY NOT NULL,"
             "'body' TEXT UNIQUE NOT NULL,"
             "'timestamp' INTEGER NOT NULL);",
+        "CREATE TABLE IF NOT EXISTS 'secret' ("
+            "'id' INTEGER PRIMARY KEY NOT NULL,"
+            "'timestamp' INTEGER NOT NULL,"
+            "'secret' TEXT UNIQUE NOT NULL,"
+            "'mine' INTEGER NOT NULL,"
+            "'sweep' INTEGER NOT NULL);",
         "CREATE TABLE IF NOT EXISTS 'output' ("
             "'id' INTEGER PRIMARY KEY NOT NULL,"
             "'timestamp' INTEGER NOT NULL,"
@@ -87,12 +93,6 @@ void Wallet::UpgradeDatabase()
             "'amount' INTEGER NOT NULL,"
             "'spent' INTEGER NOT NULL,"
             "FOREIGN KEY('secret_id') REFERENCES 'secret'('id'));",
-        "CREATE TABLE IF NOT EXISTS 'secret' ("
-            "'id' INTEGER PRIMARY KEY NOT NULL,"
-            "'timestamp' INTEGER NOT NULL,"
-            "'secret' TEXT UNIQUE NOT NULL,"
-            "'mine' INTEGER NOT NULL,"
-            "'sweep' INTEGER NOT NULL);",
     };
 
     for (const std::string& stmt : tables) {
