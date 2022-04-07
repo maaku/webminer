@@ -46,7 +46,11 @@ protected:
     boost::interprocess::file_lock m_db_lock;
     sqlite3* m_db;
 
+    int m_hdroot_id;
+    uint256 m_hdroot;
+
     void UpgradeDatabase();
+    void GetOrCreateHDRoot();
 
     int AddSecretToWallet(absl::Time timestamp, const SecretWebcash& sk, bool mine, bool sweep);
     int AddOutputToWallet(absl::Time timestamp, const PublicWebcash& pk, int secret_id, bool spent);
