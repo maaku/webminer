@@ -418,6 +418,8 @@ Wallet::~Wallet()
     }
     // Release our filesystem lock on the wallet.
     m_db_lock.unlock();
+    // Secure-erase the master secret from memory
+    memory_cleanse(m_hdroot.begin(), m_hdroot.size());
 }
 
 std::string to_string(HashType type)
