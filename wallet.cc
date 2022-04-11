@@ -459,6 +459,304 @@ static HashType get_hash_type(bool mine, bool sweep)
     return HashType::UNUSED;
 }
 
+WalletSecret Wallet::ReserveSecret(absl::Time _timestamp, bool mine, bool sweep)
+{
+    const std::lock_guard<std::mutex> lock(m_mut);
+    const int64_t chaincode = 0;
+
+    // Timestamps in the database are recorded as seconds since the UNIX epoch.
+    const int64_t timestamp = absl::ToUnixSeconds(_timestamp);
+
+    int hdchain_id = -1;
+    int64_t depth = -1;
+    {
+        const std::string sql =
+            "SELECT id,maxdepth "
+              "FROM 'hdchain' "
+             "WHERE hdroot_id=:hdroot_id "
+               "AND chaincode=:chaincode "
+               "AND mine=:mine "
+               "AND sweep=:sweep "
+            "LIMIT 1;";
+        sqlite3_stmt* stmt;
+        int res = sqlite3_prepare_v2(m_db, sql.c_str(), sql.size(), &stmt, nullptr);
+        if (res != SQLITE_OK) {
+            std::string msg(absl::StrCat("Unable to prepare SQL statement [\"", sql, "\"]: ", sqlite3_errstr(res), " (", to_string(res), ")"));
+            std::cerr << msg << std::endl;
+            throw std::runtime_error(msg);
+        }
+        res = sqlite3_bind_int(stmt, sqlite3_bind_parameter_index(stmt, ":hdroot_id"), m_hdroot_id);
+        if (res != SQLITE_OK) {
+            std::string msg(absl::StrCat("Unable to bind ':hdroot_id' in SQL statement [\"", sqlite3_sql(stmt), "\"] to ", m_hdroot_id, ": ", sqlite3_errstr(res), " (", to_string(res), ")"));
+            std::cerr << msg << std::endl;
+            sqlite3_finalize(stmt);
+            throw std::runtime_error(msg);
+        }
+        res = sqlite3_bind_int64(stmt, sqlite3_bind_parameter_index(stmt, ":chaincode"), chaincode);
+        if (res != SQLITE_OK) {
+            std::string msg(absl::StrCat("Unable to bind ':hdroot_id' in SQL statement [\"", sqlite3_sql(stmt), "\"] to ", to_string(chaincode), ": ", sqlite3_errstr(res), " (", to_string(res), ")"));
+            std::cerr << msg << std::endl;
+            sqlite3_finalize(stmt);
+            throw std::runtime_error(msg);
+        }
+        res = sqlite3_bind_int(stmt, sqlite3_bind_parameter_index(stmt, ":mine"), !!mine);
+        if (res != SQLITE_OK) {
+            std::string msg(absl::StrCat("Unable to bind ':mine' in SQL statement [\"", sqlite3_sql(stmt), "\"] to ", (mine ? "TRUE" : "FALSE"), ": ", sqlite3_errstr(res), " (", to_string(res), ")"));
+            std::cerr << msg << std::endl;
+            sqlite3_finalize(stmt);
+            throw std::runtime_error(msg);
+        }
+        res = sqlite3_bind_int(stmt, sqlite3_bind_parameter_index(stmt, ":sweep"), !!sweep);
+        if (res != SQLITE_OK) {
+            std::string msg(absl::StrCat("Unable to bind ':sweep' in SQL statement [\"", sqlite3_sql(stmt), "\"] to ", (mine ? "TRUE" : "FALSE"), ": ", sqlite3_errstr(res), " (", to_string(res), ")"));
+            std::cerr << msg << std::endl;
+            sqlite3_finalize(stmt);
+            throw std::runtime_error(msg);
+        }
+        res = sqlite3_step(stmt);
+        if (res != SQLITE_ROW) {
+            std::string msg = absl::StrCat("Running SQL statement [\"", sqlite3_expanded_sql(stmt), "\"] returned unexpected status code: ", sqlite3_errstr(res), " (", to_string(res), ")");
+            std::cerr << msg << std::endl;
+            sqlite3_finalize(stmt);
+            throw std::runtime_error(msg);
+        }
+        hdchain_id = sqlite3_column_int(stmt, 0);
+        if (hdchain_id < 0) {
+            std::string msg(absl::StrCat("Current HD chain id is negative.  Not sure what to do."));
+            std::cerr << msg << std::endl;
+            sqlite3_finalize(stmt);
+            throw std::runtime_error(msg);
+        }
+        depth = sqlite3_column_int64(stmt, 1);
+        if (depth < 0) {
+            std::string msg(absl::StrCat("Current HD chain depth is negative.  Not sure what to do."));
+            std::cerr << msg << std::endl;
+            sqlite3_finalize(stmt);
+            throw std::runtime_error(msg);
+        }
+        sqlite3_finalize(stmt);
+    }
+
+    const std::string tag_str = "webcashwalletv1";
+    uint256 tag;
+    CSHA256()
+        .Write((const unsigned char*)tag_str.c_str(), tag_str.size())
+        .Finalize(tag.begin());
+    std::array<unsigned char, 8> chaincode_bytes = {
+        (chaincode >> 56) & 0xff,
+        (chaincode >> 48) & 0xff,
+        (chaincode >> 40) & 0xff,
+        (chaincode >> 32) & 0xff,
+        (chaincode >> 24) & 0xff,
+        (chaincode >> 16) & 0xff,
+        (chaincode >> 8) & 0xff,
+        chaincode & 0xff,
+    };
+    std::array<unsigned char, 8> depth_bytes = {
+        0, 0, 0, 0, 0, 0, 0, 0,
+    };
+    if (!mine && sweep) {
+        depth_bytes.back() = 0;
+    } else
+    if (!mine && !sweep) {
+        depth_bytes.back() = 1;
+    } else
+    if (mine && !sweep) {
+        depth_bytes.back() = 2;
+    } else
+    if (mine && sweep) {
+        depth_bytes.back() = 3;
+    }
+    uint256 secret;
+    CSHA256()
+        .Write(tag.begin(), 32)
+        .Write(tag.begin(), 32)
+        .Write(m_hdroot.begin(), 32)
+        .Write(chaincode_bytes.data(), chaincode_bytes.size())
+        .Write(depth_bytes.data(), depth_bytes.size())
+        .Finalize(secret.begin());
+    SecureString sk(absl::BytesToHexString(absl::string_view((const char*)secret.begin(), secret.size())));
+    memory_cleanse(secret.begin(), secret.size());
+
+    int secret_id = -1;
+    {
+        const std::string sql =
+            "BEGIN TRANSACTION;"
+            ""
+            "INSERT INTO 'secret' ('timestamp','secret','mine','sweep')"
+            "VALUES(:timestamp,:secret,:mine,:sweep);"
+            ""
+            "INSERT INTO 'hdkey' ('hdchain_id','depth','secret_id')"
+            "VALUES(:hdchain_id,:depth,(SELECT id FROM 'secret' WHERE secret = :secret));"
+            ""
+            "UPDATE 'hdchain' SET maxdepth = :depth + 1 "
+            "WHERE id = :hdchain_id;"
+            ""
+            "COMMIT;";
+        sqlite3_stmt* stmt;
+        const char* head = sql.c_str();
+        const char* tail = sql.c_str() + sql.size();
+        // BEGIN TRANSACTION;
+        int res = sqlite3_prepare_v2(m_db, sql.c_str(), sql.size(), &stmt, &tail);
+        size_t size = tail - head;
+        if (res != SQLITE_OK) {
+            std::string msg(absl::StrCat("Unable to prepare SQL statement [\"", head, "\"]: ", sqlite3_errstr(res), " (", std::to_string(res), ")"));
+            std::cerr << msg << std::endl;
+            throw std::runtime_error(msg);
+        }
+        res = sqlite3_step(stmt);
+        if (res != SQLITE_DONE) {
+            std::string msg = absl::StrCat("Running SQL statement [\"", sqlite3_expanded_sql(stmt), "\"] returned unexpected status code: ", sqlite3_errstr(res), " (", to_string(res), ")");
+            std::cerr << msg << std::endl;
+            sqlite3_finalize(stmt);
+            throw std::runtime_error(msg);
+        }
+        sqlite3_finalize(stmt);
+        // INSERT INTO secret(...) VALUES...
+        head = tail;
+        tail = sql.c_str() + sql.size();
+        size = tail - head;
+        res = sqlite3_prepare_v2(m_db, head, size, &stmt, &tail);
+        size = tail - head;
+        if (res != SQLITE_OK) {
+            std::string msg(absl::StrCat("Unable to prepare SQL statement [\"", head, "\"]: ", sqlite3_errstr(res), " (", std::to_string(res), ")"));
+            std::cerr << msg << std::endl;
+            throw std::runtime_error(msg);
+        }
+        res = sqlite3_bind_int64(stmt, sqlite3_bind_parameter_index(stmt, ":timestamp"), timestamp);
+        if (res != SQLITE_OK) {
+            std::string msg(absl::StrCat("Unable to bind ':timestamp' in SQL statement [\"", sqlite3_sql(stmt), "\"] to ", timestamp, ": ", sqlite3_errstr(res), " (", to_string(res), ")"));
+            std::cerr << msg << std::endl;
+            sqlite3_finalize(stmt);
+            throw std::runtime_error(msg);
+        }
+        res = sqlite3_bind_blob(stmt, sqlite3_bind_parameter_index(stmt, ":secret"), m_hdroot.begin(), 32, SQLITE_STATIC);
+        if (res != SQLITE_OK) {
+            std::string msg(absl::StrCat("Unable to bind ':secret' in SQL statement [\"", sqlite3_sql(stmt), "\"] to ", absl::BytesToHexString(absl::string_view((const char*)m_hdroot.begin(), 32)), ": ", sqlite3_errstr(res), " (", to_string(res), ")"));
+            std::cerr << msg << std::endl;
+            sqlite3_finalize(stmt);
+            throw std::runtime_error(msg);
+        }
+        res = sqlite3_bind_int(stmt, sqlite3_bind_parameter_index(stmt, ":mine"), !!mine);
+        if (res != SQLITE_OK) {
+            std::string msg(absl::StrCat("Unable to bind ':mine' in SQL statement [\"", sqlite3_sql(stmt), "\"] to ", (mine ? "TRUE" : "FALSE"), ": ", sqlite3_errstr(res), " (", to_string(res), ")"));
+            std::cerr << msg << std::endl;
+            sqlite3_finalize(stmt);
+            throw std::runtime_error(msg);
+        }
+        res = sqlite3_bind_int(stmt, sqlite3_bind_parameter_index(stmt, ":sweep"), !!sweep);
+        if (res != SQLITE_OK) {
+            std::string msg(absl::StrCat("Unable to bind ':sweep' in SQL statement [\"", sqlite3_sql(stmt), "\"] to ", (sweep ? "TRUE" : "FALSE"), ": ", sqlite3_errstr(res), " (", to_string(res), ")"));
+            std::cerr << msg << std::endl;
+            sqlite3_finalize(stmt);
+            throw std::runtime_error(msg);
+        }
+        res = sqlite3_step(stmt);
+        if (res != SQLITE_DONE) {
+            std::string msg = absl::StrCat("Running SQL statement [\"", sqlite3_expanded_sql(stmt), "\"] returned unexpected status code: ", sqlite3_errstr(res), " (", to_string(res), ")");
+            std::cerr << msg << std::endl;
+            sqlite3_finalize(stmt);
+            throw std::runtime_error(msg);
+        }
+        sqlite3_finalize(stmt);
+        secret_id = sqlite3_last_insert_rowid(m_db);
+        // INSERT INTO hdkey(...) VALUES...
+        head = tail;
+        tail = sql.c_str() + sql.size();
+        size = tail - head;
+        res = sqlite3_prepare_v2(m_db, head, size, &stmt, &tail);
+        size = tail - head;
+        if (res != SQLITE_OK) {
+            std::string msg(absl::StrCat("Unable to prepare SQL statement [\"", head, "\"]: ", sqlite3_errstr(res), " (", std::to_string(res), ")"));
+            std::cerr << msg << std::endl;
+            throw std::runtime_error(msg);
+        }
+        res = sqlite3_bind_int(stmt, sqlite3_bind_parameter_index(stmt, ":hdchain_id"), hdchain_id);
+        if (res != SQLITE_OK) {
+            std::string msg(absl::StrCat("Unable to bind ':hdchain_id' in SQL statement [\"", sqlite3_sql(stmt), "\"] to ", hdchain_id, ": ", sqlite3_errstr(res), " (", to_string(res), ")"));
+            std::cerr << msg << std::endl;
+            sqlite3_finalize(stmt);
+            throw std::runtime_error(msg);
+        }
+        res = sqlite3_bind_int(stmt, sqlite3_bind_parameter_index(stmt, ":depth"), depth);
+        if (res != SQLITE_OK) {
+            std::string msg(absl::StrCat("Unable to bind ':depth' in SQL statement [\"", sqlite3_sql(stmt), "\"] to ", depth, ": ", sqlite3_errstr(res), " (", to_string(res), ")"));
+            std::cerr << msg << std::endl;
+            sqlite3_finalize(stmt);
+            throw std::runtime_error(msg);
+        }
+        res = sqlite3_bind_blob(stmt, sqlite3_bind_parameter_index(stmt, ":secret"), m_hdroot.begin(), 32, SQLITE_STATIC);
+        if (res != SQLITE_OK) {
+            std::string msg(absl::StrCat("Unable to bind ':secret' in SQL statement [\"", sqlite3_sql(stmt), "\"] to ", absl::BytesToHexString(absl::string_view((const char*)m_hdroot.begin(), 32)), ": ", sqlite3_errstr(res), " (", to_string(res), ")"));
+            std::cerr << msg << std::endl;
+            sqlite3_finalize(stmt);
+            throw std::runtime_error(msg);
+        }
+        res = sqlite3_step(stmt);
+        if (res != SQLITE_DONE) {
+            std::string msg = absl::StrCat("Running SQL statement [\"", sqlite3_expanded_sql(stmt), "\"] returned unexpected status code: ", sqlite3_errstr(res), " (", to_string(res), ")");
+            std::cerr << msg << std::endl;
+            sqlite3_finalize(stmt);
+            throw std::runtime_error(msg);
+        }
+        sqlite3_finalize(stmt);
+        // UPDATE hdchain...
+        head = tail;
+        tail = sql.c_str() + sql.size();
+        size = tail - head;
+        res = sqlite3_prepare_v2(m_db, head, size, &stmt, &tail);
+        size = tail - head;
+        if (res != SQLITE_OK) {
+            std::string msg(absl::StrCat("Unable to prepare SQL statement [\"", head, "\"]: ", sqlite3_errstr(res), " (", std::to_string(res), ")"));
+            std::cerr << msg << std::endl;
+            throw std::runtime_error(msg);
+        }
+        res = sqlite3_bind_int(stmt, sqlite3_bind_parameter_index(stmt, ":hdchain_id"), hdchain_id);
+        if (res != SQLITE_OK) {
+            std::string msg(absl::StrCat("Unable to bind ':hdchain_id' in SQL statement [\"", sqlite3_sql(stmt), "\"] to ", hdchain_id, ": ", sqlite3_errstr(res), " (", to_string(res), ")"));
+            std::cerr << msg << std::endl;
+            sqlite3_finalize(stmt);
+            throw std::runtime_error(msg);
+        }
+        res = sqlite3_bind_int(stmt, sqlite3_bind_parameter_index(stmt, ":depth"), depth);
+        if (res != SQLITE_OK) {
+            std::string msg(absl::StrCat("Unable to bind ':depth' in SQL statement [\"", sqlite3_sql(stmt), "\"] to ", depth, ": ", sqlite3_errstr(res), " (", to_string(res), ")"));
+            std::cerr << msg << std::endl;
+            sqlite3_finalize(stmt);
+            throw std::runtime_error(msg);
+        }
+        sqlite3_finalize(stmt);
+        // COMMIT
+        head = tail;
+        tail = sql.c_str() + sql.size();
+        size = tail - head;
+        res = sqlite3_prepare_v2(m_db, head, size, &stmt, &tail);
+        size = tail - head;
+        if (res != SQLITE_OK) {
+            std::string msg(absl::StrCat("Unable to prepare SQL statement [\"", head, "\"]: ", sqlite3_errstr(res), " (", std::to_string(res), ")"));
+            std::cerr << msg << std::endl;
+            throw std::runtime_error(msg);
+        }
+        res = sqlite3_step(stmt);
+        if (res != SQLITE_DONE) {
+            std::string msg = absl::StrCat("Running SQL statement [\"", sqlite3_expanded_sql(stmt), "\"] returned unexpected status code: ", sqlite3_errstr(res), " (", to_string(res), ")");
+            std::cerr << msg << std::endl;
+            sqlite3_finalize(stmt);
+            throw std::runtime_error(msg);
+        }
+        sqlite3_finalize(stmt);
+    }
+
+    WalletSecret wsecret;
+    wsecret.id = secret_id;
+    wsecret.timestamp = _timestamp;
+    wsecret.secret = sk;
+    wsecret.mine = mine;
+    wsecret.sweep = sweep;
+
+    return wsecret;
+}
+
 int Wallet::AddSecretToWallet(absl::Time _timestamp, const SecretWebcash &sk, bool mine, bool sweep)
 {
     using std::to_string;
@@ -755,28 +1053,8 @@ bool Wallet::Insert(const SecretWebcash& sk, bool mine)
     woutput.spent = false;
 
     // Generate change address.
-    SecretWebcash change;
-    {
-        uint256 secret;
-        change.amount = sk.amount;
-        GetStrongRandBytes(secret.begin(), 32);
-        change.sk = absl::BytesToHexString(absl::string_view((const char*)secret.begin(), secret.size()));
-        memory_cleanse(secret.begin(), 32);
-    }
-
-    // Insert change address into the wallet db.
-    int change_id = AddSecretToWallet(now, change, true, false);
-    if (!change_id) {
-        std::cerr << "Error adding change secret to wallet; unable to proceed with replacement." << std::endl;
-        return false;
-    }
-
-    WalletSecret wchange;
-    wchange.id = change_id;
-    wchange.timestamp = now;
-    wchange.secret = change.sk;
-    wchange.mine = true;
-    wchange.sweep = false;
+    WalletSecret wchange = ReserveSecret(now, /* mine = */ true, /* sweep = */ false);
+    SecretWebcash change(wchange.secret, sk.amount);
 
     std::vector<WalletOutput> inputs;
     inputs.emplace_back(std::move(woutput));

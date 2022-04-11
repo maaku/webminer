@@ -52,6 +52,7 @@ protected:
     void UpgradeDatabase();
     void GetOrCreateHDRoot();
 
+    WalletSecret ReserveSecret(absl::Time timestamp, bool mine, bool sweep);
     int AddSecretToWallet(absl::Time timestamp, const SecretWebcash& sk, bool mine, bool sweep);
     int AddOutputToWallet(absl::Time timestamp, const PublicWebcash& pk, int secret_id, bool spent);
 
