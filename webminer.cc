@@ -509,6 +509,16 @@ int main(int argc, char **argv)
 
     const std::string server = absl::GetFlag(FLAGS_server);
 
+    // The random subsystem must be initialized before the wallet is created on
+    // first use, or else generated secrets may not be secure.  The random
+    // subsystem will auto-initialize itself on first invocation, but we do so
+    // explicitly here to make sure we don't rely on this behavior.
+    RandomInit();
+    if (!Random_SanityCheck()) {
+        std::cerr << "Error: RNG sanity check failed. RNG is not secure." << std::endl;
+        return 1;
+    }
+
     // Open the wallet file, which will throw an error if the walletfile
     // parameter is unusable.
     g_wallet = std::unique_ptr<Wallet>(new Wallet(absl::GetFlag(FLAGS_walletfile)));
@@ -558,12 +568,6 @@ int main(int argc, char **argv)
         // Do the same for the orphan log as well.
         std::ofstream orphan_log(absl::GetFlag(FLAGS_orphanlog), std::ofstream::app);
         orphan_log.flush();
-    }
-
-    RandomInit();
-    if (!Random_SanityCheck()) {
-        std::cerr << "Error: RNG sanity check failed. RNG is not secure." << std::endl;
-        return 1;
     }
 
     int num_workers = get_num_workers();
