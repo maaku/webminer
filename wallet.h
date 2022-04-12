@@ -109,9 +109,9 @@ public:
     bool Insert(const SecretWebcash& sk, bool mine);
 
     // Have *any* terms of service been accepted?
-    bool HaveAcceptedTerms() const;
+    bool HaveAcceptedTerms();
     // Have the specific terms of service been accepted?
-    bool AreTermsAccepted(const std::string& terms) const;
+    bool AreTermsAccepted(const std::string& terms);
     // Mark the specified terms of service as accepted.
     void AcceptTerms(const std::string& terms);
 };

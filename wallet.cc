@@ -120,7 +120,6 @@ std::string to_string(const SqlValue& v)
 
 bool Wallet::ExecuteSql(const std::string& sql, const SqlParams& params)
 {
-    const std::lock_guard<std::mutex> lock(m_mut);
     const char* head = sql.c_str();
     const char* tail = sql.c_str() + sql.size();
     while (head != tail) {
@@ -442,7 +441,6 @@ static HashType get_hash_type(bool mine, bool sweep)
 
 WalletSecret Wallet::ReserveSecret(absl::Time _timestamp, bool mine, bool sweep)
 {
-    const std::lock_guard<std::mutex> lock(m_mut);
     const int64_t chaincode = 0;
 
     // Timestamps in the database are recorded as seconds since the UNIX epoch.
@@ -599,7 +597,6 @@ WalletSecret Wallet::ReserveSecret(absl::Time _timestamp, bool mine, bool sweep)
 int Wallet::AddSecretToWallet(absl::Time _timestamp, const SecretWebcash &sk, bool mine, bool sweep)
 {
     using std::to_string;
-    const std::lock_guard<std::mutex> lock(m_mut);
     int result = true;
 
     // Timestamps in the database are recorded as seconds since the UNIX epoch.
@@ -638,7 +635,6 @@ int Wallet::AddSecretToWallet(absl::Time _timestamp, const SecretWebcash &sk, bo
 int Wallet::AddOutputToWallet(absl::Time _timestamp, const PublicWebcash& pk, int secret_id, bool spent)
 {
     using std::to_string;
-    const std::lock_guard<std::mutex> lock(m_mut);
 
     // Timestamps in the database are recorded as seconds since the UNIX epoch.
     const int64_t timestamp = absl::ToUnixSeconds(_timestamp);
@@ -749,7 +745,6 @@ std::vector<std::pair<WalletSecret, int>> Wallet::ReplaceWebcash(absl::Time time
 
     // Mark each input as spent in the database.
     {
-        const std::lock_guard<std::mutex> lock(m_mut);
         for (WalletOutput& webcash : inputs) {
             // Update the object.
             webcash.spent = true;
@@ -796,6 +791,7 @@ std::vector<std::pair<WalletSecret, int>> Wallet::ReplaceWebcash(absl::Time time
 bool Wallet::Insert(const SecretWebcash& sk, bool mine)
 {
     using std::to_string;
+    const std::lock_guard<std::mutex> lock(m_mut);
 
     // The database records the timestamp of an insertion
     const absl::Time now = absl::Now();
@@ -849,8 +845,9 @@ bool Wallet::Insert(const SecretWebcash& sk, bool mine)
     return true;
 }
 
-bool Wallet::HaveAcceptedTerms() const
+bool Wallet::HaveAcceptedTerms()
 {
+    const std::lock_guard<std::mutex> lock(m_mut);
     static const std::string stmt = "SELECT EXISTS(SELECT 1 FROM 'terms')";
     sqlite3_stmt* have_any_terms;
     int res = sqlite3_prepare_v2(m_db, stmt.c_str(), stmt.size(), &have_any_terms, nullptr);
@@ -871,8 +868,9 @@ bool Wallet::HaveAcceptedTerms() const
     return any;
 }
 
-bool Wallet::AreTermsAccepted(const std::string& terms) const
+bool Wallet::AreTermsAccepted(const std::string& terms)
 {
+    const std::lock_guard<std::mutex> lock(m_mut);
     static const std::string stmt = "SELECT EXISTS(SELECT 1 FROM 'terms' WHERE body=?)";
     sqlite3_stmt* have_terms;
     int res = sqlite3_prepare_v2(m_db, stmt.c_str(), stmt.size(), &have_terms, nullptr);
@@ -902,10 +900,11 @@ bool Wallet::AreTermsAccepted(const std::string& terms) const
 
 void Wallet::AcceptTerms(const std::string& terms)
 {
-    static const std::string sql =
-        "INSERT INTO terms ('body','timestamp')"
-        "VALUES(:body,:timestamp)";
     if (!AreTermsAccepted(terms)) {
+        const std::lock_guard<std::mutex> lock(m_mut);
+        static const std::string sql =
+            "INSERT INTO terms ('body','timestamp')"
+            "VALUES(:body,:timestamp)";
         SqlParams params;
         params["body"] = SqlText(terms);
         int64_t timestamp = absl::ToUnixSeconds(absl::Now());
