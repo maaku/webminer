@@ -257,10 +257,10 @@ void Wallet::GetOrCreateHDRoot()
         const std::string sql =
             "BEGIN TRANSACTION;"
             ""
-            "INSERT INTO hdroot ('timestamp','version','secret')"
+            "INSERT OR IGNORE INTO hdroot ('timestamp','version','secret')"
             "VALUES(:timestamp,1,:secret);"
             ""
-            "INSERT INTO hdchain ('hdroot_id','chaincode','mine','sweep','mindepth','maxdepth')"
+            "INSERT OR IGNORE INTO hdchain ('hdroot_id','chaincode','mine','sweep','mindepth','maxdepth')"
             "VALUES((SELECT id FROM 'hdroot' WHERE secret=:secret),0,FALSE,FALSE,0,0),"
                   "((SELECT id FROM 'hdroot' WHERE secret=:secret),0,FALSE,TRUE,0,0),"
                   "((SELECT id FROM 'hdroot' WHERE secret=:secret),0,TRUE,FALSE,0,0),"
@@ -562,13 +562,15 @@ WalletSecret Wallet::ReserveSecret(absl::Time _timestamp, bool mine, bool sweep)
         const std::string sql =
             "BEGIN TRANSACTION;"
             ""
-            "INSERT INTO secret ('timestamp','secret','mine','sweep')"
+            "INSERT OR IGNORE INTO secret ('timestamp','secret','mine','sweep')"
             "VALUES(:timestamp,:secret,:mine,:sweep);"
+            "UPDATE secret SET mine = mine & :mine WHERE secret = :secret;"
+            "UPDATE secret SET sweep = sweep | :sweep WHERE secret = :secret;"
             ""
-            "INSERT INTO hdkey ('hdchain_id','depth','secret_id')"
+            "INSERT OR IGNORE INTO hdkey ('hdchain_id','depth','secret_id')"
             "VALUES(:hdchain_id,:depth,(SELECT id FROM 'secret' WHERE secret = :secret));"
             ""
-            "UPDATE 'hdchain' SET maxdepth = :depth + 1 "
+            "UPDATE 'hdchain' SET maxdepth = maxdepth + 1 "
             "WHERE id = :hdchain_id;"
             ""
             "COMMIT;";
@@ -620,8 +622,15 @@ int Wallet::AddSecretToWallet(absl::Time _timestamp, const SecretWebcash &sk, bo
 
     // Then attempt to write the key to the wallet database
     const std::string sql =
-        "INSERT INTO secret ('timestamp','secret','mine','sweep')"
-        "VALUES(:timestamp,:secret,:mine,:sweep);";
+        "BEGIN TRANSACTION;"
+        ""
+        "INSERT OR IGNORE INTO secret ('timestamp','secret','mine','sweep')"
+        "VALUES(:timestamp,:secret,:mine,:sweep);"
+        ""
+        "UPDATE secret SET mine = mine & :mine WHERE secret = :secret;"
+        "UPDATE secret SET sweep = sweep | :sweep WHERE secret = :secret;"
+        ""
+        "COMMIT;";
     SqlParams params;
     params["timestamp"] = SqlInteger(timestamp);
     params["secret"] = SqlText(sk.sk);
@@ -749,23 +758,12 @@ std::vector<std::pair<WalletSecret, int>> Wallet::ReplaceWebcash(absl::Time time
             // Update the object.
             webcash.spent = true;
             // Update the database.
-            const std::string stmt = "UPDATE 'output' SET spent=TRUE WHERE id=?;";
-            sqlite3_stmt* update;
-            int res = sqlite3_prepare_v2(m_db, stmt.c_str(), stmt.size(), &update, nullptr);
-            if (res != SQLITE_OK) {
-                std::cerr << "Unable to prepare SQL statement [\"" << stmt << "\"]: " << sqlite3_errstr(res) << " (" << to_string(res) << ")" << std::endl;
-                continue;
-            }
-            res = sqlite3_bind_int(update, 1, webcash.id);
-            if (res != SQLITE_OK) {
-                std::cerr << "Unable to bind 'id' in SQL statement [\"" << stmt << "\"] to " << webcash.id << ": " << sqlite3_errstr(res) << " (" << to_string(res) << ")" << std::endl;
-                sqlite3_finalize(update);
-                continue;
-            }
-            res = sqlite3_step(update);
-            if (res != SQLITE_DONE) {
-                std::cerr << "Running SQL statement [\"" << sqlite3_expanded_sql(update) << "\"] returned unexpected status code: " << sqlite3_errstr(res) << " (" << to_string(res) << ")" << std::endl;
-                sqlite3_finalize(update);
+            const std::string sql =
+                "UPDATE 'output' SET spent=TRUE WHERE id=:output_id;";
+            SqlParams params;
+            params["output_id"] = SqlInteger(webcash.id);
+            if (!ExecuteSql(sql, params)) {
+                std::cerr << "Unable to mark output as spent.  See error log for details." << std::endl;
                 continue;
             }
         }
@@ -903,7 +901,7 @@ void Wallet::AcceptTerms(const std::string& terms)
     if (!AreTermsAccepted(terms)) {
         const std::lock_guard<std::mutex> lock(m_mut);
         static const std::string sql =
-            "INSERT INTO terms ('body','timestamp')"
+            "INSERT OR IGNORE INTO terms ('body','timestamp')"
             "VALUES(:body,:timestamp)";
         SqlParams params;
         params["body"] = SqlText(terms);
