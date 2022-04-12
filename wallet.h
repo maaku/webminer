@@ -11,6 +11,7 @@
 #include <mutex>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "crypto/sha256.h"
@@ -78,6 +79,47 @@ struct PublicWebcash {
 
 std::string to_string(const PublicWebcash& epk);
 
+struct SqlNull {
+};
+
+struct SqlBool {
+    bool b;
+
+    SqlBool() : b(false) {}
+    SqlBool(bool _b) : b(_b) {}
+};
+
+struct SqlInteger {
+    int64_t i;
+
+    SqlInteger() : i(0) {}
+    SqlInteger(int64_t _i) : i(_i) {}
+};
+
+struct SqlFloat {
+    double d;
+
+    SqlFloat() : d(0.0) {}
+    SqlFloat(double _d) : d(_d) {}
+};
+
+struct SqlText {
+    std::string s;
+
+    template<typename... Args>
+    SqlText(Args&&... args) : s(std::forward<Args>(args)...) {}
+};
+
+struct SqlBlob {
+    std::vector<unsigned char> vch;
+
+    template<typename... Args>
+    SqlBlob(Args&&... args) : vch(std::forward<Args>(args)...) {}
+};
+
+typedef std::variant<SqlNull, SqlBool, SqlInteger, SqlFloat, SqlText, SqlBlob> SqlValue;
+typedef std::map<std::string, SqlValue> SqlParams;
+
 struct WalletSecret {
     int id;
     absl::Time timestamp;
@@ -102,6 +144,8 @@ protected:
     boost::filesystem::path m_logfile;
     boost::interprocess::file_lock m_db_lock;
     sqlite3* m_db;
+
+    bool ExecuteSql(const std::string& sql, const SqlParams& params);
 
     int m_hdroot_id;
     uint256 m_hdroot;
