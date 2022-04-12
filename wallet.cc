@@ -522,30 +522,37 @@ WalletSecret Wallet::ReserveSecret(absl::Time _timestamp, bool mine, bool sweep)
         .Write((const unsigned char*)tag_str.c_str(), tag_str.size())
         .Finalize(tag.begin());
     std::array<unsigned char, 8> chaincode_bytes = {
-        (chaincode >> 56) & 0xff,
-        (chaincode >> 48) & 0xff,
-        (chaincode >> 40) & 0xff,
-        (chaincode >> 32) & 0xff,
-        (chaincode >> 24) & 0xff,
-        (chaincode >> 16) & 0xff,
-        (chaincode >> 8) & 0xff,
-        chaincode & 0xff,
-    };
-    std::array<unsigned char, 8> depth_bytes = {
-        0, 0, 0, 0, 0, 0, 0, 0,
+        static_cast<unsigned char>((chaincode >> 54) & 0xff),
+        static_cast<unsigned char>((chaincode >> 46) & 0xff),
+        static_cast<unsigned char>((chaincode >> 38) & 0xff),
+        static_cast<unsigned char>((chaincode >> 30) & 0xff),
+        static_cast<unsigned char>((chaincode >> 22) & 0xff),
+        static_cast<unsigned char>((chaincode >> 14) & 0xff),
+        static_cast<unsigned char>((chaincode >> 6) & 0xff),
+        static_cast<unsigned char>((chaincode << 2) & 0xfc),
     };
     if (!mine && sweep) {
-        depth_bytes.back() = 0;
+        chaincode_bytes.back() |= 0;
     } else
     if (!mine && !sweep) {
-        depth_bytes.back() = 1;
+        chaincode_bytes.back() |= 1;
     } else
     if (mine && !sweep) {
-        depth_bytes.back() = 2;
+        chaincode_bytes.back() |= 2;
     } else
     if (mine && sweep) {
-        depth_bytes.back() = 3;
+        chaincode_bytes.back() |= 3;
     }
+    std::array<unsigned char, 8> depth_bytes = {
+        static_cast<unsigned char>((depth >> 56) & 0xff),
+        static_cast<unsigned char>((depth >> 48) & 0xff),
+        static_cast<unsigned char>((depth >> 40) & 0xff),
+        static_cast<unsigned char>((depth >> 32) & 0xff),
+        static_cast<unsigned char>((depth >> 24) & 0xff),
+        static_cast<unsigned char>((depth >> 16) & 0xff),
+        static_cast<unsigned char>((depth >> 8) & 0xff),
+        static_cast<unsigned char>(depth & 0xff),
+    };
     uint256 secret;
     CSHA256()
         .Write(tag.begin(), 32)
