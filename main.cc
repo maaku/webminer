@@ -49,9 +49,9 @@ struct ProtocolSettings {
     int difficulty;
 };
 
-std::optional<std::string> get_terms_of_service()
+std::optional<std::string> get_terms_of_service(const std::string& server)
 {
-    httplib::Client cli("https://webcash.tech");
+    httplib::Client cli(server);
     cli.set_read_timeout(60, 0); // 60 seconds
     cli.set_write_timeout(60, 0); // 60 seconds
     auto r = cli.Get("/terms/text");
@@ -75,9 +75,9 @@ static std::string amount_to_string(const UniValue& val)
     }
 }
 
-bool get_protocol_settings(ProtocolSettings& settings)
+bool get_protocol_settings(const std::string& server, ProtocolSettings& settings)
 {
-    httplib::Client cli("https://webcash.tech");
+    httplib::Client cli(server);
     cli.set_read_timeout(60, 0); // 60 seconds
     cli.set_write_timeout(60, 0); // 60 seconds
     auto r = cli.Get("/api/v1/target");
@@ -225,6 +225,7 @@ absl::Time g_last_settings_fetch{absl::UnixEpoch()};
 absl::Time g_next_settings_fetch{absl::UnixEpoch()};
 
 ABSL_FLAG(bool, acceptterms, false, "auto-accept initial or updated terms of service");
+ABSL_FLAG(std::string, server, "https://webcash.tech", "server endpoint");
 ABSL_FLAG(std::string, webcashlog, "webcash.log", "filename to place generated webcash claim codes");
 ABSL_FLAG(std::string, orphanlog, "orphans.log", "filename to place solved proof-of-works the server rejects, and their associated webcash claim codes");
 ABSL_FLAG(std::string, walletfile, "default_wallet", "base filename of wallet files");
@@ -234,6 +235,7 @@ void update_thread_func()
 {
     using std::to_string;
 
+    const std::string server = absl::GetFlag(FLAGS_server);
     const std::string webcash_log_filename = absl::GetFlag(FLAGS_webcashlog);
     const std::string orphan_log_filename = absl::GetFlag(FLAGS_orphanlog);
 
@@ -260,7 +262,7 @@ void update_thread_func()
             // hash speed to the user.
             int64_t attempts = g_attempts.exchange(0);
             ProtocolSettings settings;
-            if (get_protocol_settings(settings)) {
+            if (get_protocol_settings(server, settings)) {
                 if (!first_run) {
                     std::cout << "server says"
                               << " difficulty=" << settings.difficulty
@@ -313,7 +315,7 @@ void update_thread_func()
             BN_free(&bn);
 
             // Submit the solved proof-of-work
-            httplib::Client cli("https://webcash.tech");
+            httplib::Client cli(server);
             cli.set_read_timeout(60, 0); // 60 seconds
             cli.set_write_timeout(60, 0); // 60 seconds
             // Acceptance of terms of service is hard-coded here because it is
@@ -505,6 +507,8 @@ int main(int argc, char **argv)
     absl::SetProgramUsageMessage(absl::StrCat("Webcash mining daemon.\n", argv[0]));
     absl::ParseCommandLine(argc, argv);
 
+    const std::string server = absl::GetFlag(FLAGS_server);
+
     // Open the wallet file, which will throw an error if the walletfile
     // parameter is unusable.
     g_wallet = std::unique_ptr<Wallet>(new Wallet(absl::GetFlag(FLAGS_walletfile)));
@@ -514,7 +518,7 @@ int main(int argc, char **argv)
     }
 
     std::cout << "Fetching current terms of service from server." << std::endl;
-    std::optional<std::string> terms = get_terms_of_service();
+    std::optional<std::string> terms = get_terms_of_service(server);
     if (!terms) {
         std::cerr << "Error: Unable to fetch terms of service from server." << std::endl;
         return 1;
@@ -581,7 +585,7 @@ int main(int argc, char **argv)
     std::cout << "Using SHA256 algorithm '" << algo << "'." << std::endl;
 
     ProtocolSettings settings;
-    if (!get_protocol_settings(settings)) {
+    if (!get_protocol_settings(server, settings)) {
         std::cerr << "Error: could not fetch protocol settings from server; exiting" << std::endl;
         return 1;
     }
