@@ -46,7 +46,7 @@ struct ProtocolSettings {
     float ratio;
     // The number of leading bits which must be zero for a work candidate to be
     // accepted by the server.
-    int difficulty;
+    unsigned difficulty;
 };
 
 std::optional<std::string> get_terms_of_service(const std::string& server)
@@ -215,7 +215,7 @@ struct Solution
 std::mutex g_state_mutex;
 std::unique_ptr<Wallet> g_wallet;
 std::deque<Solution> g_solutions;
-std::atomic<int> g_difficulty{16};
+std::atomic<unsigned> g_difficulty{16};
 std::atomic<Amount> g_mining_amount{20000};
 std::atomic<Amount> g_subsidy_amount{1000};
 std::atomic<int64_t> g_attempts{0};
