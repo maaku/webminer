@@ -179,7 +179,7 @@ std::string get_speed_string(int64_t attempts, absl::Time begin, absl::Time end)
 std::string get_expect_string(int64_t attempts, absl::Time begin, absl::Time end, int difficulty) {
     double speed = attempts / absl::ToDoubleSeconds(end - begin);
     double expect = absl::Int128Low64(1) << difficulty;
-    int sec = std::lround(expect / speed);
+    int sec = std::lround(expect / std::max(1.0, speed));
     int min = sec / 60;
     int hr = min / 60;
     int day = hr / 24;
