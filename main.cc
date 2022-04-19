@@ -230,6 +230,7 @@ ABSL_FLAG(std::string, webcashlog, "webcash.log", "filename to place generated w
 ABSL_FLAG(std::string, orphanlog, "orphans.log", "filename to place solved proof-of-works the server rejects, and their associated webcash claim codes");
 ABSL_FLAG(std::string, walletfile, "default_wallet", "base filename of wallet files");
 ABSL_FLAG(unsigned, workers, 0, "number of mining threads to spawn");
+ABSL_FLAG(unsigned, maxdifficulty, 80, "disable mining above this difficulty");
 
 void update_thread_func()
 {
@@ -388,6 +389,8 @@ void mining_thread_func(int id)
 {
     using std::to_string;
 
+    const unsigned max_difficulty = absl::GetFlag(FLAGS_maxdifficulty);
+
     static const char nonces[] =
         "MDAwMDAxMDAyMDAzMDA0MDA1MDA2MDA3MDA4MDA5MDEwMDExMDEyMDEzMDE0MDE1MDE2MDE3MDE4MDE5"
         "MDIwMDIxMDIyMDIzMDI0MDI1MDI2MDI3MDI4MDI5MDMwMDMxMDMyMDMzMDM0MDM1MDM2MDM3MDM4MDM5"
@@ -444,6 +447,13 @@ void mining_thread_func(int id)
 
     bool done = false;
     while (!done) {
+        // Suspend mining until the difficulty drops below the user-configured
+        // maximum.
+        if (g_difficulty > max_difficulty) {
+            // FIXME: would be best to have a mutex to wait on
+            absl::SleepFor(absl::Seconds(5));
+        }
+
         SecretWebcash keep;
         keep.amount = g_mining_amount - g_subsidy_amount;
         GetStrongRandBytes(keep.sk.begin(), 32);
