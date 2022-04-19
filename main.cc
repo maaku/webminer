@@ -595,6 +595,9 @@ int main(int argc, char **argv)
     const std::string algo = SHA256AutoDetect();
     std::cout << "Using SHA256 algorithm '" << algo << "'." << std::endl;
 
+    // Inform the user of the maximum difficulty setting.
+    std::cout << "Setting maximum difficulty to " << absl::GetFlag(FLAGS_maxdifficulty) << "." << std::endl;
+
     ProtocolSettings settings;
     if (!get_protocol_settings(server, settings)) {
         std::cerr << "Error: could not fetch protocol settings from server; exiting" << std::endl;
@@ -607,9 +610,6 @@ int main(int argc, char **argv)
     g_difficulty = settings.difficulty;
     g_mining_amount = settings.mining_amount;
     g_subsidy_amount = settings.subsidy_amount;
-
-    // Inform the user of the maximum difficulty setting.
-    std::cout << "Setting maximum difficulty to " << absl::GetFlag(FLAGS_maxdifficulty) << "." << std::endl;
 
     // Launch thread to update RNG and protocol settings, and to
     // submit work in the background.
