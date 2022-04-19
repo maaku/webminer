@@ -607,6 +607,9 @@ int main(int argc, char **argv)
     g_mining_amount = settings.mining_amount;
     g_subsidy_amount = settings.subsidy_amount;
 
+    // Inform the user of the maximum difficulty setting.
+    std::cout << "Setting maximum difficulty to " << absl::GetFlag(FLAGS_maxdifficulty) << "." << std::endl;
+
     // Launch thread to update RNG and protocol settings, and to
     // submit work in the background.
     std::thread update_thread(update_thread_func);
