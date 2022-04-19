@@ -452,6 +452,7 @@ void mining_thread_func(int id)
         if (g_difficulty > max_difficulty) {
             // FIXME: would be best to have a mutex to wait on
             absl::SleepFor(absl::Seconds(5));
+            continue;
         }
 
         SecretWebcash keep;
