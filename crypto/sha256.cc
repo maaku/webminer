@@ -51,6 +51,11 @@ namespace sha256_shani
 void Transform(uint32_t* s, const unsigned char* chunk, size_t blocks);
 }
 
+namespace sha256_armv8
+{
+void Transform(uint32_t* s, const unsigned char* chunk, size_t blocks);
+}
+
 // Internal implementation code.
 namespace
 {
@@ -641,6 +646,10 @@ std::string SHA256AutoDetect()
         ret += ",avx2(8way)";
     }
 #endif
+#elif defined(__aarch64__)
+    Transform = sha256_armv8::Transform;
+    TransformD64 = TransformD64Wrapper<sha256_armv8::Transform>;
+    ret = "armv8";
 #endif
 
     assert(SelfTest());

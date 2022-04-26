@@ -87,6 +87,7 @@ cc_library(
         "crypto/sha256_sse41.cc",
         "crypto/sha256_avx2.cc",
         "crypto/sha256_shani.cc",
+        "crypto/sha256_armv8.cc",
         "crypto/sha512.cc",
     ],
     deps = [
