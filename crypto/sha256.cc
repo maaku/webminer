@@ -15,6 +15,16 @@
 
 #include "compat/cpuid.h"
 
+#if defined(__linux__)
+#include <sys/auxv.h>
+#include <asm/hwcap.h>
+#endif
+
+#if defined(__APPLE__)
+#include <sys/types.h>
+#include <sys/sysctl.h>
+#endif
+
 #if defined(__x86_64__) || defined(__amd64__) || defined(__i386__)
 namespace sha256_sse4
 {
@@ -47,6 +57,16 @@ void Transform_2way(unsigned char* out, const unsigned char* in);
 }
 
 namespace sha256_shani
+{
+void Transform(uint32_t* s, const unsigned char* chunk, size_t blocks);
+}
+
+namespace sha256d64_armv8
+{
+void Transform_2way(unsigned char* out, const unsigned char* in);
+}
+
+namespace sha256_armv8
 {
 void Transform(uint32_t* s, const unsigned char* chunk, size_t blocks);
 }
@@ -641,6 +661,37 @@ std::string SHA256AutoDetect()
         ret += ",avx2(8way)";
     }
 #endif
+
+#elif defined(__aarch64__)
+    bool have_arm_shani = false;
+
+#if defined(__linux__)
+#if defined(__arm__) // 32-bit
+    if (getauxval(AT_HWCAP2) & HWCAP2_SHA2) {
+        have_arm_shani = true;
+    }
+#endif
+#if defined(__aarch64__) // 64-bit
+    if (getauxval(AT_HWCAP) & HWCAP_SHA2) {
+        have_arm_shani = true;
+    }
+#endif
+#endif
+
+#if defined(__APPLE__)
+    int val = 0;
+    size_t len = sizeof(val);
+    if (sysctlbyname("hw.optional.arm.FEAT_SHA256", &val, &len, nullptr, 0) == 0) {
+        have_arm_shani = true;
+    }
+#endif
+
+    if (have_arm_shani) {
+        Transform = sha256_armv8::Transform;
+        TransformD64 = TransformD64Wrapper<sha256_armv8::Transform>;
+        TransformD64_2way = sha256d64_armv8::Transform_2way;
+        ret = "armv8(1way,2way)";
+    }
 #endif
 
     assert(SelfTest());
