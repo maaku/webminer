@@ -15,7 +15,7 @@
 
 #include "compat/cpuid.h"
 
-#if defined(__linux__)
+#if defined(__linux__) && (defined(__arm__) || defined(__aarch64__))
 #include <sys/auxv.h>
 #include <asm/hwcap.h>
 #endif
