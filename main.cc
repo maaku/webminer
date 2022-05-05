@@ -261,6 +261,7 @@ void update_thread_func()
             fetch_settings = false;
             // Fetch updated protocol settings, and report changes + current
             // hash speed to the user.
+            current_time = absl::Now();
             int64_t attempts = g_attempts.exchange(0);
             ProtocolSettings settings;
             if (get_protocol_settings(server, settings)) {
@@ -278,7 +279,6 @@ void update_thread_func()
                 g_subsidy_amount = settings.subsidy_amount;
             }
             // Schedule next update
-            current_time = absl::Now();
             g_last_settings_fetch = current_time;
             g_next_settings_fetch = current_time + absl::Seconds(15);
         }
