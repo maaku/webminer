@@ -73,6 +73,9 @@ cc_library(
             "-mavx2",
             "-msha",
         ],
+        "@platforms//cpu:arm64": [
+            "-march=armv8-a+crc+crypto",
+        ],
         "//conditions:default": [],
     }),
     hdrs = [
