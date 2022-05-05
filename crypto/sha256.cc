@@ -51,6 +51,11 @@ namespace sha256_shani
 void Transform(uint32_t* s, const unsigned char* chunk, size_t blocks);
 }
 
+namespace sha256d64_armv8
+{
+void Transform_2way(unsigned char* out, const unsigned char* in);
+}
+
 namespace sha256_armv8
 {
 void Transform(uint32_t* s, const unsigned char* chunk, size_t blocks);
@@ -649,7 +654,8 @@ std::string SHA256AutoDetect()
 #elif defined(__aarch64__)
     Transform = sha256_armv8::Transform;
     TransformD64 = TransformD64Wrapper<sha256_armv8::Transform>;
-    ret = "armv8";
+    TransformD64_2way = sha256d64_armv8::Transform_2way;
+    ret = "armv8(1way,2way)";
 #endif
 
     assert(SelfTest());
