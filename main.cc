@@ -96,10 +96,15 @@ bool get_protocol_settings(const std::string& server, ProtocolSettings& settings
         std::cerr << "Error: expected integer for 'difficulty' field of ProtocolSettings response, got '" << difficulty.write() << "' instead." << std::endl;
         return false;
     }
-    const UniValue& ratio = o["ratio"];
-    if (!ratio.isNum()) {
-        std::cerr << "Error: expected real number for 'ratio' field of ProtocolSettings response, got '" << ratio.write() << "' instead." << std::endl;
-        return false;
+    const UniValue& ratio_field = o["ratio"];
+    float ratio = 0.0f;
+    if (ratio_field.isNum()) {
+        ratio = ratio_field.get_real();
+    } else {
+        if (!absl::SimpleAtof(ratio_field.get_str(), &ratio)) {
+            std::cerr << "Error: expected real number for 'ratio' field of ProtocolSettings response, got '" << ratio_field.write() << "' instead." << std::endl;
+            return false;
+        }
     }
     const std::string mining_amount_str = amount_to_string(o["mining_amount"]);
     Amount mining_amount = -1;
@@ -114,7 +119,7 @@ bool get_protocol_settings(const std::string& server, ProtocolSettings& settings
         return false;
     }
     settings.difficulty = difficulty.get_int();
-    settings.ratio = ratio.get_real();
+    settings.ratio = ratio;
     settings.mining_amount = mining_amount;
     settings.subsidy_amount = subsidy_amount;
     return true;
