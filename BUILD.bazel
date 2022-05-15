@@ -151,10 +151,12 @@ cc_library(
         "@boost//:filesystem",
         "@boost//:interprocess",
         "@com_google_absl//absl/strings:strings",
+        ":cpp_http",
         ":random",
         ":sha2",
         ":sqlite3",
         ":uint256",
+        ":univalue",
     ]
 )
 
