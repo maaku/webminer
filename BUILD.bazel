@@ -174,7 +174,7 @@ load("@rules_cc//cc:defs.bzl", "cc_binary")
 
 cc_binary(
     name = "webminer",
-    srcs = ["main.cc"],
+    srcs = ["webminer.cc"],
     deps = [
         "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/flags:usage",
