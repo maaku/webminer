@@ -77,6 +77,7 @@ int main(int argc, char **argv)
 {
     absl::SetProgramUsageMessage(absl::StrCat("Webcash server process.\n", argv[0]));
     absl::ParseCommandLine(argc, argv);
+    auto& app = drogon::app();
 
     const std::string algo = SHA256AutoDetect();
     std::cout << "Using SHA256 algorithm '" << algo << "'." << std::endl;
@@ -85,15 +86,15 @@ int main(int argc, char **argv)
     drogon::app().setThreadNum(get_num_workers());
 
     // Set HTTP listener address and port
-    drogon::app().addListener("127.0.0.1", 8000);
+    app.addListener("127.0.0.1", 8000);
 
     // Load config file, if present
     if (boost::filesystem::exists("webcashd.conf")) {
-        drogon::app().loadConfigFile("webcashd.conf");
+        app.loadConfigFile("webcashd.conf");
     }
 
     // Run HTTP server
-    drogon::app().run();
+    app.run();
 
     return 0;
 }
