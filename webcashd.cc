@@ -34,15 +34,15 @@ protected:
     const ssize_t k_terms_cache_expiry = 2 * 60 * 60 /* 2 hours */;
 
 public:
+    PATH_LIST_BEGIN
+        PATH_ADD("/terms", Get);
+        PATH_ADD("/terms/text", Get);
+    PATH_LIST_END
+
     virtual void asyncHandleHttpRequest(
             const HttpRequestPtr& req,
             std::function<void (const HttpResponsePtr &)> &&callback
         ) override;
-
-    PATH_LIST_BEGIN
-    PATH_ADD("/terms", Get);
-    PATH_ADD("/terms/text", Get);
-    PATH_LIST_END
 };
 
 void TermsOfService::asyncHandleHttpRequest(
