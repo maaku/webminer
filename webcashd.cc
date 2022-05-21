@@ -49,28 +49,19 @@ void TermsOfService::asyncHandleHttpRequest(
     const HttpRequestPtr& req,
     std::function<void (const HttpResponsePtr &)> &&callback
 ){
-    auto resp = HttpResponse::newHttpResponse();
-    std::string filename;
+    HttpResponsePtr resp;
     if (req && req->getPath() == "/terms") {
-        filename = "terms/terms.html";
-        resp->setContentTypeCode(drogon::CT_TEXT_HTML);
+        resp = HttpResponse::newFileResponse("terms/terms.html", "", drogon::CT_TEXT_HTML);
+        resp->setExpiredTime(k_terms_cache_expiry);
     }
     else if (req && req->getPath() == "/terms/text") {
-        filename = "terms/terms.text";
-        resp->setContentTypeCode(drogon::CT_TEXT_PLAIN);
+        resp = HttpResponse::newFileResponse("terms/terms.text", "", drogon::CT_TEXT_PLAIN);
+        resp->setExpiredTime(k_terms_cache_expiry);
     } else {
         // If we get here, our view controller is messed up.
         // Check the path definitions.
-        callback(HttpResponse::newNotFoundResponse());
-        return;
+        resp = HttpResponse::newNotFoundResponse();
     }
-    assert(!filename.empty());
-    std::ifstream file(filename);
-    std::stringstream buffer;
-    buffer << file.rdbuf();
-    resp->setBody(buffer.str());
-    resp->setExpiredTime(k_terms_cache_expiry);
-    resp->setStatusCode(drogon::k200OK);
     callback(resp);
 }
 
