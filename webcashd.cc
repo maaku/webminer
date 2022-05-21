@@ -9,10 +9,21 @@
 
 #include "absl/strings/str_cat.h"
 
+#include <drogon/HttpAppFramework.h>
+
 int main(int argc, char **argv)
 {
     absl::SetProgramUsageMessage(absl::StrCat("Webcash server process.\n", argv[0]));
     absl::ParseCommandLine(argc, argv);
+
+    // Set HTTP listener address and port
+    drogon::app().addListener("127.0.0.1", 8000);
+
+    // Load config file
+    drogon::app().loadConfigFile("webcashd.conf");
+
+    // Run HTTP server
+    drogon::app().run();
 
     return 0;
 }

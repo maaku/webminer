@@ -179,6 +179,7 @@ cc_binary(
         "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/flags:usage",
         "@com_google_absl//absl/strings:strings",
+        ":drogon",
     ],
 )
 
@@ -211,6 +212,29 @@ cmake(
     out_headers_only = True,
 )
 
+cmake(
+    name = "drogon",
+    deps = [
+        "@boost//:filesystem",
+        "@brotli//:brotlidec",
+        "@brotli//:brotlienc",
+        "@jsoncpp//:jsoncpp",
+        ":hiredis",
+        ":sqlite3",
+        ":zlib",
+    ],
+    lib_source = "@drogon//:all_srcs",
+    install = True,
+    out_static_libs = ["libdrogon.a", "libtrantor.a"],
+)
+
+cmake(
+    name = "hiredis",
+    lib_source = "@hiredis//:all_srcs",
+    install = True,
+    out_static_libs = ["libhiredis.a"],
+)
+
 configure_make(
     name = "univalue",
     configure_in_place = True, # Required by autogen=True
@@ -220,6 +244,13 @@ configure_make(
     },
     lib_source = "@univalue//:all_srcs",
     out_static_libs = ["libunivalue.a"],
+)
+
+cmake(
+    name = "zlib",
+    lib_source = "@zlib//:all_srcs",
+    install = True,
+    out_static_libs = ["libz.a"],
 )
 
 # End of File
