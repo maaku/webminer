@@ -6,6 +6,7 @@
 
 #include <functional>
 #include <string>
+#include <utility>
 
 #include "absl/flags/parse.h"
 #include "absl/flags/usage.h"
@@ -15,17 +16,22 @@
 #include "boost/filesystem.hpp"
 
 #include <drogon/HttpAppFramework.h>
+#include <drogon/HttpController.h>
 #include <drogon/HttpSimpleController.h>
+
+#include <json/json.h>
 
 #include "async.h"
 #include "crypto/sha256.h"
 
+using drogon::HttpController;
 using drogon::HttpSimpleController;
 using drogon::HttpRequest;
 using drogon::HttpRequestPtr;
 using drogon::HttpResponse;
 using drogon::HttpResponsePtr;
 using drogon::Get;
+using drogon::Post;
 
 class TermsOfService
     : public HttpSimpleController<TermsOfService>
@@ -64,6 +70,72 @@ void TermsOfService::asyncHandleHttpRequest(
     }
     callback(resp);
 }
+
+namespace api {
+class V1
+    : public HttpController<V1>
+{
+public:
+    METHOD_LIST_BEGIN
+        METHOD_ADD(V1::replace, "/replace", Post);
+        METHOD_ADD(V1::target, "/target", Get);
+        METHOD_ADD(V1::miningReport, "/mining_report", Post);
+        METHOD_ADD(V1::healthCheck, "/health_check", Post);
+    METHOD_LIST_END
+
+    void replace(
+        const HttpRequestPtr &req,
+        std::function<void (const HttpResponsePtr &)> &&callback);
+
+    void target(
+        const HttpRequestPtr &req,
+        std::function<void (const HttpResponsePtr &)> &&callback);
+
+    void miningReport(
+        const HttpRequestPtr &req,
+        std::function<void (const HttpResponsePtr &)> &&callback);
+
+    void healthCheck(
+        const HttpRequestPtr &req,
+        std::function<void (const HttpResponsePtr &)> &&callback);
+};
+
+void V1::replace(
+    const HttpRequestPtr &req,
+    std::function<void (const HttpResponsePtr &)> &&callback
+){
+    Json::Value ret(__func__);
+    auto resp = HttpResponse::newHttpJsonResponse(std::move(ret));
+    callback(resp);
+}
+
+void V1::target(
+    const HttpRequestPtr &req,
+    std::function<void (const HttpResponsePtr &)> &&callback
+){
+    Json::Value ret(__func__);
+    auto resp = HttpResponse::newHttpJsonResponse(std::move(ret));
+    callback(resp);
+}
+
+void V1::miningReport(
+    const HttpRequestPtr &req,
+    std::function<void (const HttpResponsePtr &)> &&callback
+){
+    Json::Value ret(__func__);
+    auto resp = HttpResponse::newHttpJsonResponse(std::move(ret));
+    callback(resp);
+}
+
+void V1::healthCheck(
+    const HttpRequestPtr &req,
+    std::function<void (const HttpResponsePtr &)> &&callback
+){
+    Json::Value ret(__func__);
+    auto resp = HttpResponse::newHttpJsonResponse(std::move(ret));
+    callback(resp);
+}
+} // namespace api
 
 int main(int argc, char **argv)
 {
