@@ -164,9 +164,24 @@ cc_library(
         "@boost//:filesystem",
         "@boost//:interprocess",
         "@com_google_absl//absl/strings:strings",
-        ":random",
-        ":sha2",
+        "@com_google_absl//absl/time:time",
+        ":webcash",
         ":sqlite3",
+    ]
+)
+
+cc_library(
+    name = "webcash",
+    hdrs = [
+        "webcash.h",
+    ],
+    srcs = [
+        "webcash.cc",
+    ],
+    deps = [
+        "@com_google_absl//absl/strings:strings",
+        "@com_google_absl//absl/numeric:int128",
+        ":sha2",
         ":uint256",
     ]
 )
@@ -207,14 +222,18 @@ cc_binary(
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/flags:usage",
+        "@com_google_absl//absl/numeric:int128",
         "@com_google_absl//absl/strings:strings",
+        "@com_google_absl//absl/time:time",
         ":async",
         ":cpp_http",
         ":random",
         ":sha2",
+        ":sync",
         ":uint256",
         ":univalue",
         ":wallet",
+        ":webcash",
     ],
 )
 
