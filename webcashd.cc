@@ -17,6 +17,8 @@
 #include <drogon/HttpAppFramework.h>
 #include <drogon/HttpSimpleController.h>
 
+#include "async.h"
+
 using drogon::HttpSimpleController;
 using drogon::HttpRequest;
 using drogon::HttpRequestPtr;
@@ -74,6 +76,9 @@ int main(int argc, char **argv)
 {
     absl::SetProgramUsageMessage(absl::StrCat("Webcash server process.\n", argv[0]));
     absl::ParseCommandLine(argc, argv);
+
+    // Configure the number of worker threads
+    drogon::app().setThreadNum(get_num_workers());
 
     // Set HTTP listener address and port
     drogon::app().addListener("127.0.0.1", 8000);

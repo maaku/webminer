@@ -7,6 +7,19 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
 
 cc_library(
+    name = "async",
+    hdrs = [
+        "async.h",
+    ],
+    srcs = [
+        "async.cc",
+    ],
+    deps = [
+        "@com_google_absl//absl/flags:flag",
+    ],
+)
+
+cc_library(
     name = "common",
     defines = select({
         "@bazel_tools//src/conditions:windows": ["WIN32"],
@@ -177,9 +190,11 @@ cc_binary(
     srcs = ["webcashd.cc"],
     deps = [
         "@boost//:filesystem",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/flags:usage",
         "@com_google_absl//absl/strings:strings",
+        ":async",
         ":drogon",
     ],
 )
@@ -188,9 +203,11 @@ cc_binary(
     name = "webminer",
     srcs = ["webminer.cc"],
     deps = [
+        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/flags:usage",
         "@com_google_absl//absl/strings:strings",
+        ":async",
         ":cpp_http",
         ":random",
         ":sha2",

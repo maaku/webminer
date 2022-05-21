@@ -32,6 +32,7 @@
 
 #include <univalue.h>
 
+#include "async.h"
 #include "crypto/sha256.h"
 #include "random.h"
 #include "support/cleanse.h"
@@ -235,7 +236,6 @@ ABSL_FLAG(std::string, server, "https://webcash.tech", "server endpoint");
 ABSL_FLAG(std::string, webcashlog, "webcash.log", "filename to place generated webcash claim codes");
 ABSL_FLAG(std::string, orphanlog, "orphans.log", "filename to place solved proof-of-works the server rejects, and their associated webcash claim codes");
 ABSL_FLAG(std::string, walletfile, "default_wallet", "base filename of wallet files");
-ABSL_FLAG(unsigned, workers, 0, "number of mining threads to spawn");
 ABSL_FLAG(unsigned, maxdifficulty, 80, "disable mining above this difficulty");
 
 void update_thread_func()
@@ -587,20 +587,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    int num_workers = absl::GetFlag(FLAGS_workers);
-    if (num_workers > 1024) {
-        std::cerr << "Error: --workers cannot be larger than 1024" << std::endl;
-        return 1;
-    }
-    if (num_workers == 0) {
-        num_workers = std::thread::hardware_concurrency();
-        if (num_workers != 0) {
-            std::cout << "Auto-detected the hardware concurrency to be " << num_workers << std::endl;
-        } else {
-            std::cout << "Could not auto-detect the hardware concurrency; assuming a value of 1" << std::endl;
-            num_workers = 1;
-        }
-    }
+    int num_workers = get_num_workers();
 
     const std::string algo = SHA256AutoDetect();
     std::cout << "Using SHA256 algorithm '" << algo << "'." << std::endl;
