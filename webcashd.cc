@@ -137,6 +137,32 @@ void V1::healthCheck(
 }
 } // namespace api
 
+class EconomyStatus
+    : public HttpSimpleController<EconomyStatus>
+{
+protected:
+    const ssize_t k_stats_cache_expiry = 10 /* 10 seconds */;
+
+public:
+    PATH_LIST_BEGIN
+        PATH_ADD("/stats", Get);
+    PATH_LIST_END
+
+    virtual void asyncHandleHttpRequest(
+            const HttpRequestPtr& req,
+            std::function<void (const HttpResponsePtr &)> &&callback
+        ) override;
+};
+
+void EconomyStatus::asyncHandleHttpRequest(
+    const HttpRequestPtr& req,
+    std::function<void (const HttpResponsePtr &)> &&callback
+){
+    Json::Value ret;
+    auto resp = HttpResponse::newHttpJsonResponse(std::move(ret));
+    callback(resp);
+}
+
 int main(int argc, char **argv)
 {
     absl::SetProgramUsageMessage(absl::StrCat("Webcash server process.\n", argv[0]));
