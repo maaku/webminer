@@ -70,6 +70,7 @@ void TermsOfService::asyncHandleHttpRequest(
     buffer << file.rdbuf();
     resp->setBody(buffer.str());
     resp->setExpiredTime(k_terms_cache_expiry);
+    resp->setStatusCode(drogon::k200OK);
     callback(resp);
 }
 
