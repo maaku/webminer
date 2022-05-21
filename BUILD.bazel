@@ -209,9 +209,13 @@ cc_binary(
         "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/flags:usage",
         "@com_google_absl//absl/strings:strings",
+        "@com_google_absl//absl/time:time",
         ":async",
         ":drogon",
         ":sha2",
+        ":sync",
+        ":uint256",
+        ":webcash",
     ],
 )
 

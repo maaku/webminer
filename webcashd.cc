@@ -4,14 +4,23 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+#include <stdint.h>
+
+#include <atomic>
 #include <functional>
+#include <map>
+#include <set>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "absl/flags/parse.h"
 #include "absl/flags/usage.h"
 
 #include "absl/strings/str_cat.h"
+
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 
 #include "boost/filesystem.hpp"
 
@@ -23,6 +32,9 @@
 
 #include "async.h"
 #include "crypto/sha256.h"
+#include "uint256.h"
+#include "sync.h"
+#include "webcash.h"
 
 using drogon::HttpController;
 using drogon::HttpSimpleController;
@@ -32,6 +44,48 @@ using drogon::HttpResponse;
 using drogon::HttpResponsePtr;
 using drogon::Get;
 using drogon::Post;
+
+struct MiningReport {
+    std::string preimage; // source: client
+    absl::uint128 aggregate_work; // cached
+    absl::Time received; // source: server
+    uint8_t difficulty; // cached
+};
+
+struct Replacement {
+    std::map<uint256, Amount> inputs;
+    std::map<uint256, Amount> outputs;
+    absl::Time received;
+};
+
+class WebcashEconomy {
+public:
+    mutable Mutex cs;
+public: // should be protected:
+    const int64_t INITIAL_MINING_AMOUNT = 20000000000000LL;
+    const int64_t INITIAL_SUBSIDY_AMOUNT = 1000000000000LL;
+    std::atomic<unsigned> difficulty = 28; // cached
+    std::atomic<size_t> num_reports = 0; // cached
+
+    absl::Time genesis = absl::Now(); // treated as constant
+    std::map<uint256, Amount> unspent GUARDED_BY(cs);
+    std::set<uint256> spent GUARDED_BY(cs);
+    std::vector<MiningReport> mining_reports GUARDED_BY(cs);
+    std::map<uint256, size_t> proof_of_works GUARDED_BY(cs);
+    std::vector<Replacement> audit_log GUARDED_BY(cs);
+
+public:
+    WebcashEconomy() = default;
+    // Non-copyable:
+    WebcashEconomy(const WebcashEconomy&) = delete;
+    WebcashEconomy& operator=(const WebcashEconomy&) = delete;
+};
+
+WebcashEconomy& state()
+{
+    static WebcashEconomy economy;
+    return economy;
+}
 
 class TermsOfService
     : public HttpSimpleController<TermsOfService>
