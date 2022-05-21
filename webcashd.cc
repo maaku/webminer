@@ -9,6 +9,8 @@
 
 #include "absl/strings/str_cat.h"
 
+#include "boost/filesystem.hpp"
+
 #include <drogon/HttpAppFramework.h>
 
 int main(int argc, char **argv)
@@ -19,8 +21,10 @@ int main(int argc, char **argv)
     // Set HTTP listener address and port
     drogon::app().addListener("127.0.0.1", 8000);
 
-    // Load config file
-    drogon::app().loadConfigFile("webcashd.conf");
+    // Load config file, if present
+    if (boost::filesystem::exists("webcashd.conf")) {
+        drogon::app().loadConfigFile("webcashd.conf");
+    }
 
     // Run HTTP server
     drogon::app().run();
