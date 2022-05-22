@@ -17,6 +17,8 @@
 #include "absl/flags/parse.h"
 #include "absl/flags/usage.h"
 
+#include "absl/numeric/int128.h"
+
 #include "absl/strings/str_cat.h"
 
 #include "absl/time/clock.h"
@@ -36,6 +38,8 @@
 #include "sync.h"
 #include "webcash.h"
 
+using std::to_string;
+
 using drogon::HttpController;
 using drogon::HttpSimpleController;
 using drogon::HttpRequest;
@@ -44,6 +48,8 @@ using drogon::HttpResponse;
 using drogon::HttpResponsePtr;
 using drogon::Get;
 using drogon::Post;
+
+using Json::ValueType::objectValue;
 
 struct MiningReport {
     std::string preimage; // source: client
@@ -56,6 +62,17 @@ struct Replacement {
     std::map<uint256, Amount> inputs;
     std::map<uint256, Amount> outputs;
     absl::Time received;
+};
+
+struct WebcashStats {
+    absl::Time timestamp;
+    absl::uint128 total_circulation = 0;
+    absl::uint128 expected_circulation = 0;
+    unsigned num_reports;
+    Amount mining_amount;
+    Amount subsidy_amount;
+    unsigned epoch = 0;
+    unsigned difficulty = 0;
 };
 
 class WebcashEconomy {
@@ -79,7 +96,72 @@ public:
     // Non-copyable:
     WebcashEconomy(const WebcashEconomy&) = delete;
     WebcashEconomy& operator=(const WebcashEconomy&) = delete;
+
+    inline unsigned getDifficulty() const {
+        return difficulty.load();
+    }
+
+    unsigned getEpoch() const {
+        return num_reports.load() / 525000;
+    }
+
+    inline Amount getMiningAmount() const {
+        size_t epoch = num_reports.load() / 525000;
+        return (epoch > 63)
+            ? Amount{0}
+            : Amount{INITIAL_MINING_AMOUNT >> epoch};
+    }
+
+    inline Amount getSubsidyAmount() const {
+        size_t epoch = num_reports.load() / 525000;
+        return (epoch > 63)
+            ? Amount{0}
+            : Amount{INITIAL_SUBSIDY_AMOUNT >> epoch};
+    }
+
+    WebcashStats getStats(absl::Time now);
 };
+
+WebcashStats WebcashEconomy::getStats(absl::Time now)
+{
+    WebcashStats stats;
+    stats.timestamp = now;
+    do {
+        stats.num_reports = num_reports.load();
+        stats.difficulty = difficulty.load();
+    } while (stats.num_reports != num_reports.load());
+
+    stats.total_circulation = 0;
+    size_t count = stats.num_reports;
+    uint64_t value = INITIAL_MINING_AMOUNT;
+    while (525000 < count) {
+        stats.total_circulation += value * 525000;
+        count -= 525000;
+    }
+    stats.total_circulation += count * value;
+
+    stats.expected_circulation = 0;
+    count = static_cast<size_t>((stats.timestamp - genesis) / absl::Seconds(10));
+    value = INITIAL_MINING_AMOUNT;
+    while (525000 < count) {
+        stats.expected_circulation += value * 525000;
+        count -= 525000;
+    }
+    stats.expected_circulation += count * value;
+
+    // Do not use the class methods because that would re-fetch num_reports,
+    // which might have been updated.
+    stats.epoch = stats.num_reports / 525000;
+    if (stats.epoch > 63) {
+        stats.mining_amount = 0;
+        stats.subsidy_amount = 0;
+    } else {
+        stats.mining_amount = INITIAL_MINING_AMOUNT >> stats.epoch;
+        stats.subsidy_amount = INITIAL_SUBSIDY_AMOUNT >> stats.epoch;
+    }
+
+    return stats;
+}
 
 WebcashEconomy& state()
 {
@@ -191,8 +273,8 @@ void V1::healthCheck(
 }
 } // namespace api
 
-class EconomyStatus
-    : public HttpSimpleController<EconomyStatus>
+class EconomyStats
+    : public HttpSimpleController<EconomyStats>
 {
 protected:
     const ssize_t k_stats_cache_expiry = 10 /* 10 seconds */;
@@ -208,12 +290,44 @@ public:
         ) override;
 };
 
-void EconomyStatus::asyncHandleHttpRequest(
+void EconomyStats::asyncHandleHttpRequest(
     const HttpRequestPtr& req,
     std::function<void (const HttpResponsePtr &)> &&callback
 ){
-    Json::Value ret;
+    WebcashStats stats;
+    {
+        auto& state = ::state();
+        LOCK(state.cs);
+        stats = state.getStats(absl::Now());
+    }
+
+    Json::Value ret(objectValue);
+
+    // Total circulation
+    auto total = stats.total_circulation;
+    uint64_t integer_part = absl::Uint128Low64(total / 100000000);
+    uint64_t fractional_part = absl::Uint128Low64(total % 100000000);
+    if (fractional_part == 0) {
+        ret["circulation"] = integer_part;
+    } else {
+        ret["circulation"] = static_cast<double>(total) / 100000000.0;
+    }
+    std::stringstream ss;
+    ss.imbue(std::locale(""));
+    ss << std::fixed << integer_part;
+    std::string s = to_string(Amount(fractional_part));
+    ret["circulation_formatted"] = ss.str() + s.substr(1);
+    ret["ratio"] = static_cast<double>(stats.total_circulation) / static_cast<double>(stats.expected_circulation);
+
+    // Mining stats
+    ret["mining_reports"] = stats.num_reports;
+    ret["epoch"] = stats.epoch;
+    ret["difficulty_target_bits"] = stats.difficulty;
+    ret["mining_amount"] = to_string(stats.mining_amount);
+    ret["mining_subsidy_amount"] = to_string(stats.subsidy_amount);
+
     auto resp = HttpResponse::newHttpJsonResponse(std::move(ret));
+    resp->setExpiredTime(k_stats_cache_expiry);
     callback(resp);
 }
 
