@@ -169,6 +169,22 @@ WebcashEconomy& state()
     return economy;
 }
 
+std::shared_ptr<drogon::HttpResponse> JSONRPCError(const std::string& err)
+{
+    Json::Value ret(objectValue);
+    ret["status"] = "error";
+    // FIXME: In the case of /mining_report, we need to somehow get the
+    //        difficulty in here.
+    if (!err.empty()) {
+        ret["error"] = err;
+    } else {
+        ret["error"] = "unknown";
+    }
+    auto resp = HttpResponse::newHttpJsonResponse(ret);
+    resp->setStatusCode(drogon::k500InternalServerError);
+    return resp;
+}
+
 class TermsOfService
     : public HttpSimpleController<TermsOfService>
 {
