@@ -203,6 +203,64 @@ bool check_legalese(
     return terms.asBool();
 }
 
+bool parse_secrets(
+    const Json::Value& array,
+    std::map<uint256, SecretWebcash>& _webcash
+){
+    _webcash.clear();
+    std::map<uint256, SecretWebcash> webcash;
+    if (!array.isArray()) {
+        return false; // expected array
+    }
+    for (int i = 0; i < array.size(); ++i) {
+        auto& secret_str = array[i];
+        if (!secret_str.isString()) {
+            return false; // must be string-encoded
+        }
+        SecretWebcash secret;
+        if (!secret.parse(secret_str.asString())) {
+            return false; // parser error
+        }
+        PublicWebcash pub(secret);
+        auto res = webcash.insert({pub.pk, secret});
+        if (!res.second) {
+            return false; // duplicate
+        }
+    }
+    if (webcash.size() != array.size()) {
+        return false; // duplicate
+    }
+    _webcash.swap(webcash);
+    return true;
+}
+
+bool parse_public_webcashes(
+    const Json::Value& array,
+    std::vector<PublicWebcash>& _webcash
+){
+    _webcash.clear();
+    std::vector<PublicWebcash> webcash;
+    if (!array.isArray()) {
+        return false; // expected array
+    }
+    for (int i = 0; i < array.size(); ++i) {
+        auto& descriptor_str = array[i];
+        if (!descriptor_str.isString()) {
+            return false; // must be string-encoded
+        }
+        PublicWebcash descriptor;
+        if (!descriptor.parse(descriptor_str.asString())) {
+            return false; // parser error
+        }
+        webcash.push_back(descriptor);
+    }
+    if (webcash.size() != array.size()) {
+        return false; // duplicate
+    }
+    _webcash.swap(webcash);
+    return true;
+}
+
 class TermsOfService
     : public HttpSimpleController<TermsOfService>
 {
