@@ -169,6 +169,27 @@ inline bool is_uint256(const std::string& str)
     return true;
 }
 
+inline int get_apparent_difficulty(const uint256& hash)
+{
+    int bits = 0;
+    for (int i = 0; i < 32; ++i) {
+        const unsigned char c = hash.begin()[i];
+        if (c == 0x00) {
+            bits += 8;
+            continue;
+        }
+        if (c == 0x01) return bits + 7;
+        if (c <= 0x03) return bits + 6;
+        if (c <= 0x07) return bits + 5;
+        if (c <= 0x0f) return bits + 4;
+        if (c <= 0x1f) return bits + 3;
+        if (c <= 0x3f) return bits + 2;
+        if (c <= 0x7f) return bits + 1;
+        break;
+    }
+    return bits;
+}
+
 #endif // BITCOIN_UINT256_H
 
 // End of File
