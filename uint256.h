@@ -9,6 +9,8 @@
 #ifndef BITCOIN_UINT256_H
 #define BITCOIN_UINT256_H
 
+#include "absl/strings/ascii.h"
+
 #include <assert.h>
 #include <cstring>
 #include <stdint.h>
@@ -152,6 +154,19 @@ inline uint256 uint256S(const std::string& str)
     uint256 rv;
     rv.SetHex(str);
     return rv;
+}
+
+inline bool is_uint256(const std::string& str)
+{
+    if (str.length() != 64) {
+        return false;
+    }
+    for (int i = 0; i < str.length(); ++i) {
+        if (!absl::ascii_isxdigit(str[i])) {
+            return false;
+        }
+    }
+    return true;
 }
 
 #endif // BITCOIN_UINT256_H
