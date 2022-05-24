@@ -185,6 +185,24 @@ std::shared_ptr<drogon::HttpResponse> JSONRPCError(const std::string& err)
     return resp;
 }
 
+bool check_legalese(
+    const Json::Value& request
+){
+    if (!request.isObject())
+        return false;
+    if (!request.isMember("legalese"))
+        return false;
+    const auto& legalese = request["legalese"];
+    if (!legalese.isObject())
+        return false;
+    if (!legalese.isMember("terms"))
+        return false;
+    const auto& terms = legalese["terms"];
+    if (!terms.isConvertibleTo(Json::booleanValue))
+        return false;
+    return terms.asBool();
+}
+
 class TermsOfService
     : public HttpSimpleController<TermsOfService>
 {
