@@ -335,7 +335,110 @@ void V1::replace(
     const HttpRequestPtr &req,
     std::function<void (const HttpResponsePtr &)> &&callback
 ){
-    Json::Value ret(__func__);
+    absl::Time received = absl::Now();
+
+    auto maybe_msg = req->getJsonObject();
+    if (!maybe_msg || !maybe_msg->isObject()) {
+        return callback(JSONRPCError("no JSON body"));
+    }
+    auto msg = *maybe_msg;
+    if (!check_legalese(msg)) {
+        return callback(JSONRPCError("didn't accept terms"));
+    }
+
+    // Extract 'inputs'
+    if (!msg.isMember("webcashes")) {
+        return callback(JSONRPCError("no inputs"));
+    }
+    std::map<uint256, SecretWebcash> inputs;
+    if (!parse_secrets(msg["webcashes"], inputs)) {
+        return callback(JSONRPCError("can't parse inputs"));
+    }
+    Amount total_in(0);
+    for (const auto& item : inputs) {
+        const auto& wc = item.second;
+        total_in += wc.amount;
+        if (total_in < 1 || wc.amount < 1) {
+            return callback(JSONRPCError("overflow"));
+        }
+    }
+
+    // Extract 'outputs'
+    if (!msg.isMember("new_webcashes")) {
+        return callback(JSONRPCError("no outputs"));
+    }
+    std::map<uint256, SecretWebcash> outputs;
+    if (!parse_secrets(msg["new_webcashes"], outputs)) {
+        return callback(JSONRPCError("can't parse inputs"));
+    }
+    Amount total_out(0);
+    for (const auto& item : outputs) {
+        const auto& wc = item.second;
+        total_out += wc.amount;
+        if (total_out < 1 || wc.amount < 1) {
+            return callback(JSONRPCError("overflow"));
+        }
+    }
+
+    // Check inputs == outputs
+    if (total_in != total_out) {
+        return callback(JSONRPCError("inbalance"));
+    }
+
+    // Now we perform checks that require access to global state.
+    {
+        // Lock the global state
+        auto& state = ::state();
+        LOCK(state.cs);
+
+        // Check that inputs exist with claimed value
+        for (const auto& item : inputs) {
+            auto iter = state.unspent.find(item.first);
+            if (iter == state.unspent.end()) {
+                return callback(JSONRPCError("missing"));
+            }
+            if (iter->second != item.second.amount) {
+                return callback(JSONRPCError("wrong amount"));
+            }
+        }
+
+        // Check that outputs do not exist
+        for (const auto& item : outputs) {
+            if (state.unspent.find(item.first) != state.unspent.end()) {
+                return callback(JSONRPCError("reuse"));
+            }
+        }
+
+        // Keep a record of changes for the audit log
+        Replacement tx;
+        tx.received = received;
+
+        // Remove inputs
+        for (const auto& item : inputs) {
+            state.unspent.erase(item.first);
+            state.spent.insert(item.first);
+            tx.inputs[item.first] = item.second.amount;
+        }
+
+        // Add outputs
+        for (const auto& item : outputs) {
+            state.unspent[item.first] = item.second.amount;
+            tx.outputs[item.first] = item.second.amount;
+        }
+
+        // Record to audit log
+        state.audit_log.push_back(std::move(tx));
+
+        std::cerr << "Replaced " << inputs.size()
+                  << " input for " << outputs.size()
+                  << " output (total: ₩" << to_string(total_in) << ")."
+                  << " tx=" << state.audit_log.size()
+                  << " utxos=" << state.unspent.size()
+                  << std::endl;
+    }
+
+    Json::Value ret(objectValue);
+    ret["status"] = "success";
     auto resp = HttpResponse::newHttpJsonResponse(std::move(ret));
     callback(resp);
 }
