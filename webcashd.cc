@@ -49,6 +49,7 @@ using drogon::HttpResponsePtr;
 using drogon::Get;
 using drogon::Post;
 
+using Json::ValueType::nullValue;
 using Json::ValueType::objectValue;
 
 struct MiningReport {
@@ -701,7 +702,50 @@ void V1::healthCheck(
     const HttpRequestPtr &req,
     std::function<void (const HttpResponsePtr &)> &&callback
 ){
-    Json::Value ret(__func__);
+    auto maybe_msg = req->getJsonObject();
+    if (!maybe_msg) {
+        return callback(JSONRPCError("no JSON body"));
+    }
+    auto msg = *maybe_msg;
+
+    // Read input parameters as an array of webcash public string the user wants to check.
+    std::vector<PublicWebcash> input;
+    if (!parse_public_webcashes(msg, input)) {
+        return callback(JSONRPCError("arguments needs to be array of webcash public webcash strings"));
+    }
+
+    Json::Value results(objectValue);
+    for (size_t i = 0; i < input.size();) {
+        // Obtain database lock.
+        auto& state = ::state();
+        LOCK(state.cs);
+
+        // Handle up to 20 inputs before releasing the lock to prevent contention.
+        size_t end = std::min(i + 20, input.size());
+        for (; i < end; ++i) {
+            Json::Value status(objectValue);
+            auto unspent = state.unspent.find(input[i].pk);
+            if (unspent != state.unspent.end()) {
+                status["spent"] = false;
+                status["amount"] = to_string(unspent->second);
+            } else if (state.spent.find(input[i].pk) != state.spent.end()) {
+                status["spent"] = true;
+            } else {
+                // This is a bit obscure, but it matches the current server
+                // behavior.  A never-seen webcash is indicated by a nullary
+                // "spent" value.
+                status["spent"] = Json::Value(nullValue);
+            }
+            // Use the original input as the key, so that the user is able
+            // to find the record even if they sent a non-canonical encoding
+            // (e.g. different hex capitalization).
+            results[msg.get(i, to_string(input[i])).asString()] = status;
+        }
+    }
+
+    Json::Value ret(objectValue);
+    ret["status"] = "success";
+    ret["results"] = results;
     auto resp = HttpResponse::newHttpJsonResponse(std::move(ret));
     callback(resp);
 }
