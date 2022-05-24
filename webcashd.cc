@@ -18,6 +18,7 @@
 #include <drogon/HttpSimpleController.h>
 
 #include "async.h"
+#include "crypto/sha256.h"
 
 using drogon::HttpSimpleController;
 using drogon::HttpRequest;
@@ -76,6 +77,9 @@ int main(int argc, char **argv)
 {
     absl::SetProgramUsageMessage(absl::StrCat("Webcash server process.\n", argv[0]));
     absl::ParseCommandLine(argc, argv);
+
+    const std::string algo = SHA256AutoDetect();
+    std::cout << "Using SHA256 algorithm '" << algo << "'." << std::endl;
 
     // Configure the number of worker threads
     drogon::app().setThreadNum(get_num_workers());
