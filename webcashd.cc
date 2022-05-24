@@ -303,6 +303,9 @@ namespace api {
 class V1
     : public HttpController<V1>
 {
+protected:
+    const ssize_t k_target_cache_expiry = 2 * 60 * 60 /* 2 hours */;
+
 public:
     METHOD_LIST_BEGIN
         METHOD_ADD(V1::replace, "/replace", Post);
@@ -341,8 +344,26 @@ void V1::target(
     const HttpRequestPtr &req,
     std::function<void (const HttpResponsePtr &)> &&callback
 ){
-    Json::Value ret(__func__);
+    WebcashStats stats;
+    {
+        auto& state = ::state();
+        LOCK(state.cs);
+        stats = state.getStats(absl::Now());
+    }
+
+    Json::Value ret(objectValue);
+    ret["difficulty_target_bits"] = stats.difficulty;
+    ret["epoch"] = static_cast<int>(stats.epoch);
+    ret["mining_amount"] = to_string(stats.mining_amount);
+    ret["mining_subsidy_amount"] = to_string(stats.subsidy_amount);
+    if (stats.total_circulation > 0 && stats.expected_circulation > 0) {
+        ret["ratio"] = static_cast<double>(stats.total_circulation) / static_cast<double>(stats.expected_circulation);
+    } else {
+        ret["ratio"] = 1.0; // To avoid transient errors on startup
+    }
+
     auto resp = HttpResponse::newHttpJsonResponse(std::move(ret));
+    resp->setExpiredTime(k_target_cache_expiry);
     callback(resp);
 }
 
