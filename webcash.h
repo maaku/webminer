@@ -61,6 +61,7 @@ struct PublicWebcash {
     uint256 pk;
     Amount amount;
 
+    PublicWebcash() = default;
     PublicWebcash(const SecretWebcash& esk)
         : amount(esk.amount)
     {
