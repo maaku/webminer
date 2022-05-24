@@ -47,6 +47,14 @@ struct SecretWebcash {
     bool parse(const absl::string_view& str);
 };
 
+inline bool operator==(const SecretWebcash& lhs, const SecretWebcash& rhs) { return std::tie(lhs.amount, lhs.sk) == std::tie(rhs.amount, rhs.sk); }
+inline bool operator!=(const SecretWebcash& lhs, const SecretWebcash& rhs) { return std::tie(lhs.amount, lhs.sk) != std::tie(rhs.amount, rhs.sk); }
+
+inline bool operator<(const SecretWebcash& lhs, const SecretWebcash& rhs) { return std::tie(lhs.amount, lhs.sk) < std::tie(rhs.amount, rhs.sk); }
+inline bool operator<=(const SecretWebcash& lhs, const SecretWebcash& rhs) { return std::tie(lhs.amount, lhs.sk) <= std::tie(rhs.amount, rhs.sk); }
+inline bool operator>=(const SecretWebcash& lhs, const SecretWebcash& rhs) { return std::tie(lhs.amount, lhs.sk) >= std::tie(rhs.amount, rhs.sk); }
+inline bool operator>(const SecretWebcash& lhs, const SecretWebcash& rhs) { return std::tie(lhs.amount, lhs.sk) > std::tie(rhs.amount, rhs.sk); }
+
 std::string to_string(const SecretWebcash& esk);
 
 struct PublicWebcash {
@@ -63,6 +71,14 @@ struct PublicWebcash {
 
     bool parse(const absl::string_view& str);
 };
+
+inline bool operator==(const PublicWebcash& lhs, const PublicWebcash& rhs) { return std::tie(lhs.amount, lhs.pk) == std::tie(rhs.amount, rhs.pk); }
+inline bool operator!=(const PublicWebcash& lhs, const PublicWebcash& rhs) { return std::tie(lhs.amount, lhs.pk) != std::tie(rhs.amount, rhs.pk); }
+
+inline bool operator<(const PublicWebcash& lhs, const PublicWebcash& rhs) { return std::tie(lhs.amount, lhs.pk) < std::tie(rhs.amount, rhs.pk); }
+inline bool operator<=(const PublicWebcash& lhs, const PublicWebcash& rhs) { return std::tie(lhs.amount, lhs.pk) <= std::tie(rhs.amount, rhs.pk); }
+inline bool operator>=(const PublicWebcash& lhs, const PublicWebcash& rhs) { return std::tie(lhs.amount, lhs.pk) >= std::tie(rhs.amount, rhs.pk); }
+inline bool operator>(const PublicWebcash& lhs, const PublicWebcash& rhs) { return std::tie(lhs.amount, lhs.pk) > std::tie(rhs.amount, rhs.pk); }
 
 std::string to_string(const PublicWebcash& epk);
 
