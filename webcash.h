@@ -25,6 +25,9 @@ struct Amount {
     Amount(int64_t _i64) : i64(_i64) {}
 
     bool parse(const absl::string_view& str);
+
+    inline Amount& operator-=(const Amount& other) { i64 -= other.i64; return *this; }
+    inline Amount& operator+=(const Amount& other) { i64 += other.i64; return *this; }
 };
 
 inline bool operator==(const Amount& lhs, const Amount& rhs) { return lhs.i64 == rhs.i64; }
