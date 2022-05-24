@@ -14,6 +14,8 @@
 
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
+#include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 
 // Requires an input that is a fractional-precision decimal with no more than 8
@@ -132,6 +134,51 @@ std::string to_string(const Amount& amt) {
         }
     }
     return res;
+}
+
+bool SecretWebcash::parse(
+    const absl::string_view& str
+){
+    std::vector<std::string> parts = absl::StrSplit(str, ':');
+    if (parts.size() < 3 || parts[1] != "secret") {
+        return false;
+    }
+    if (!parts[0].empty() && parts[0][0] == 'e') {
+        // Remove leading 'e', if present
+        parts[0].erase(parts[0].begin());
+    }
+    if (!amount.parse(parts[0])) {
+        return false;
+    }
+    sk = absl::StrJoin(parts.begin() + 2, parts.end(), ":");
+    return true;
+}
+
+bool PublicWebcash::parse(
+    const absl::string_view& str
+){
+    std::vector<std::string> parts = absl::StrSplit(str, ':');
+    if (parts.size() != 3 || parts[1] != "public") {
+        return false;
+    }
+    Amount _amount;
+    if (!parts[0].empty() && parts[0][0] == 'e') {
+        // Remove leading 'e', if present
+        parts[0].erase(0, 1);
+    } else if (parts[0].size() >= 3 && parts[0][0] == '\xe2' && parts[0][1] == '\x82' && parts[0][3] == '\xa9') {
+        // Remove leading '₩', if present
+        parts[0].erase(0, 3);
+    }
+    if (!_amount.parse(parts[0])) {
+        return false;
+    }
+    if (!is_uint256(parts[2])) {
+        return false;
+    }
+    std::string pk_str = absl::HexStringToBytes(parts[2]);
+    std::copy(pk_str.begin(), pk_str.end(), pk.begin());
+    amount = _amount;
+    return true;
 }
 
 template<class Str>

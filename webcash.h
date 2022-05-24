@@ -43,6 +43,8 @@ std::string to_string(const Amount& amt);
 struct SecretWebcash {
     SecureString sk;
     Amount amount;
+
+    bool parse(const absl::string_view& str);
 };
 
 std::string to_string(const SecretWebcash& esk);
@@ -58,6 +60,8 @@ struct PublicWebcash {
             .Write((const unsigned char*)esk.sk.c_str(), esk.sk.size())
             .Finalize(pk.data());
     }
+
+    bool parse(const absl::string_view& str);
 };
 
 std::string to_string(const PublicWebcash& epk);
