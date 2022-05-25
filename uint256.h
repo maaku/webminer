@@ -161,7 +161,7 @@ inline bool is_uint256(const std::string& str)
     if (str.length() != 64) {
         return false;
     }
-    for (int i = 0; i < str.length(); ++i) {
+    for (size_t i = 0; i < str.length(); ++i) {
         if (!absl::ascii_isxdigit(str[i])) {
             return false;
         }

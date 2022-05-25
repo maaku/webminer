@@ -135,7 +135,7 @@ bool parse_secret_webcashes(
     if (!array.isArray()) {
         return false; // expected array
     }
-    for (int i = 0; i < array.size(); ++i) {
+    for (unsigned int i = 0; i < array.size(); ++i) {
         auto& secret_str = array[i];
         if (!secret_str.isString()) {
             return false; // must be string-encoded
@@ -166,7 +166,7 @@ bool parse_public_webcashes(
     if (!array.isArray()) {
         return false; // expected array
     }
-    for (int i = 0; i < array.size(); ++i) {
+    for (unsigned int i = 0; i < array.size(); ++i) {
         auto& descriptor_str = array[i];
         if (!descriptor_str.isString()) {
             return false; // must be string-encoded
@@ -536,7 +536,7 @@ void V1::miningReport(
         next_difficulty = current_difficulty;
         if ((state.mining_reports.size() & 0x7f) == 0) { // mod 128
             WebcashStats stats = state.getStats(received);
-            int look_back_window = 128; // about 10 to 15 minutes
+            size_t look_back_window = 128; // about 10 to 15 minutes
             if (state.mining_reports.size() == look_back_window) {
                 --look_back_window;
             }
