@@ -201,6 +201,18 @@ cc_test(
 load("@rules_cc//cc:defs.bzl", "cc_binary")
 
 cc_binary(
+    name = "bench_webcash",
+    srcs = [
+        "webcash_bench.cc",
+    ],
+    deps = [
+        "@com_google_benchmark//:benchmark",
+        "@com_google_benchmark//:benchmark_main",
+        ":webcash",
+    ],
+)
+
+cc_binary(
     name = "webcashd",
     srcs = ["webcashd.cc"],
     deps = [

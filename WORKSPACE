@@ -14,6 +14,14 @@ git_repository(
     shallow_since = "1635953174 -0400",
 )
 
+# benchmark source code repository
+git_repository(
+    name = "com_google_benchmark",
+    remote = "https://github.com/google/benchmark",
+    commit = "0d98dba29d66e93259db7daa53a9327df767a415",
+    shallow_since = "1641842067 +0000",
+)
+
 # boost libraries
 git_repository(
     name = "com_github_nelhage_rules_boost",
