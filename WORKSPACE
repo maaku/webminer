@@ -129,6 +129,15 @@ http_archive(
     sha256 = "50a4e306c782c77b84dee5c53049c0a072e1973d6bb76141cf41cec6ae57649f",
 )
 
+# uuid source code repository
+http_archive(
+    name = "uuid",
+    build_file_content = _ALL_CONTENT,
+    strip_prefix = "uuid-1.6.2",
+    url = "https://src.fedoraproject.org/repo/pkgs/uuid/uuid-1.6.2.tar.gz/5db0d43a9022a6ebbbc25337ae28942f/uuid-1.6.2.tar.gz",
+    sha256 = "11a615225baa5f8bb686824423f50e4427acd3f70d394765bdff32801f0fd5b0",
+)
+
 # zlib source code repository
 http_archive(
     name = "zlib",

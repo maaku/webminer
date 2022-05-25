@@ -293,8 +293,13 @@ cmake(
         "@jsoncpp//:jsoncpp",
         ":hiredis",
         ":sqlite3",
+        ":uuid",
         ":zlib",
     ],
+    linkopts = select({
+        "@bazel_tools//src/conditions:linux": ['-ldl', '-luuid'],
+        "//conditions:default": [],
+    }),
     lib_source = "@drogon//:all_srcs",
     install = True,
     out_static_libs = ["libdrogon.a", "libtrantor.a"],
@@ -316,6 +321,16 @@ configure_make(
     },
     lib_source = "@univalue//:all_srcs",
     out_static_libs = ["libunivalue.a"],
+)
+
+configure_make(
+    name = "uuid",
+    configure_in_place = True,
+    env = {
+        "AR": "",
+    },
+    lib_source = "@uuid//:all_srcs",
+    out_static_libs = ["libuuid.a"],
 )
 
 cmake(
