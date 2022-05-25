@@ -11,6 +11,7 @@
 #include <atomic>
 #include <functional>
 #include <map>
+#include <mutex>
 #include <set>
 #include <string>
 #include <utility>
@@ -27,6 +28,7 @@
 #include <json/json.h>
 
 #include "sync.h"
+#include "uint256.h"
 #include "webcash.h"
 
 using std::to_string;
