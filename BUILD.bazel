@@ -225,11 +225,13 @@ cc_binary(
         "webcash_bench.cc",
     ],
     deps = [
+        "@com_google_absl//absl/strings:strings",
         "@com_google_benchmark//:benchmark",
         "@com_google_benchmark//:benchmark_main",
         ":async",
         "cpp_http",
         ":server",
+        ":random",
         ":webcash",
     ],
 )

@@ -10,6 +10,10 @@
 #include <thread>
 #include <vector>
 
+#include "absl/strings/escaping.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
+
 #include <drogon/HttpAppFramework.h>
 
 #define CPPHTTPLIB_OPENSSL_SUPPORT
@@ -19,6 +23,7 @@
 
 #include "async.h"
 #include "crypto/sha256.h"
+#include "random.h"
 #include "webcash.h"
 
 using Json::ValueType::objectValue;
@@ -84,8 +89,13 @@ static void Server_replace(benchmark::State& state) {
     cli.set_read_timeout(60, 0); // 60 seconds
     cli.set_write_timeout(60, 0); // 60 seconds
 
+    static std::array<std::string, 256> base;
     static std::atomic<bool> first_run = true;
     if (first_run.exchange(false)) {
+        // Pregenerate 32 webcash claim codes that we will need for each of the (up to) 32 threads.
+        for (auto& wc_str : base) {
+            wc_str = absl::StrCat("e742.1875:secret:", absl::BytesToHexString(absl::string_view((char*)GetRandHash().begin(), 32)));
+        }
         // Submit an initial solution to generate some webcash for use.
         static const std::string preimage = absl::Base64Escape("{\"legalese\": {\"terms\": true}, \"webcash\": [\"e190000:secret:b0e7525b420bc6efa5c356d0bb707d96a9d599c5c218134bd0f1dc5cf107e213\", \"e10000:secret:301b4fe3587ac6a871c6c7d4e06595d4eab9572a0515fe7295067d4e52772ed2\"], \"subsidy\": [\"e10000:secret:301b4fe3587ac6a871c6c7d4e06595d4eab9572a0515fe7295067d4e52772ed2\"], \"difficulty\": 28, \"nonce\":      1366624}");
         auto r = cli.Post(
@@ -99,14 +109,28 @@ static void Server_replace(benchmark::State& state) {
             "application/json");
         assert(r);
         assert(r->status == 200);
+        r = cli.Post(
+        "/api/v1/replace",
+        absl::StrCat("{"
+            "\"legalese\": {"
+                "\"terms\": true"
+            "},"
+            "\"webcashes\": ["
+                "\"e190000:secret:b0e7525b420bc6efa5c356d0bb707d96a9d599c5c218134bd0f1dc5cf107e213\""
+            "],"
+            "\"new_webcashes\": [\"",
+                absl::StrJoin(base, "\",\""),
+            "\"]"
+        "}"),
+        "application/json");
     }
 
-    // Pregenerate 4 webcash claim codes that we will need for replacements
+    // Generate 4 random claim codes to use for transaction replacements in this run.
     static const std::array<std::string, 4> wc = {
-        "e95000:secret:eb0a376054dbbf9b57f86ddd4ffe5808c9fbb8ec4146fdd28ce5f1274bee30a2",
-        "e95000:secret:2d7e4a077835845fc21394adc008ebef6ce4c1ed5ab420d6200b01dc05d7666d",
-        "e95000:secret:3260d71217eadc6d402baa8dbbc35f5c3479fd8e4775453c0867f6f878e61f6a",
-        "e95000:secret:20297f9ab39bc20be03211bd18a139e19e02e5fae75a0f01390238503a974e16",
+        absl::StrCat("e185.546875:secret:", absl::BytesToHexString(absl::string_view((char*)GetRandHash().begin(), 32))),
+        absl::StrCat("e185.546875:secret:", absl::BytesToHexString(absl::string_view((char*)GetRandHash().begin(), 32))),
+        absl::StrCat("e185.546875:secret:", absl::BytesToHexString(absl::string_view((char*)GetRandHash().begin(), 32))),
+        absl::StrCat("e185.546875:secret:", absl::BytesToHexString(absl::string_view((char*)GetRandHash().begin(), 32))),
     };
 
     // Split generated output in half, so we have two UTXOs
@@ -117,7 +141,7 @@ static void Server_replace(benchmark::State& state) {
                 "\"terms\": true"
             "},"
             "\"webcashes\": ["
-                "\"e190000:secret:b0e7525b420bc6efa5c356d0bb707d96a9d599c5c218134bd0f1dc5cf107e213\""
+                "\"", base[state.thread_index()], "\""
             "],"
             "\"new_webcashes\": ["
                 "\"", wc[0], "\","
@@ -180,12 +204,12 @@ static void Server_replace(benchmark::State& state) {
                 "\"", wc[2*(i & 1) + 1], "\""
             "],"
             "\"new_webcashes\": ["
-                "\"e190000:secret:b0e7525b420bc6efa5c356d0bb707d96a9d599c5c218134bd0f1dc5cf107e213\""
+                "\"", base[state.thread_index()], "\""
             "]"
         "}"),
         "application/json");
     assert(r && r->status == 200);
 }
-BENCHMARK(Server_replace)->Setup(SetupServer);
+BENCHMARK(Server_replace)->Setup(SetupServer)->ThreadRange(1, 256);
 
 // End of File
