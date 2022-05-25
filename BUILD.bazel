@@ -78,6 +78,24 @@ cc_library(
 )
 
 cc_library(
+    name = "server",
+    hdrs = [
+        "server.h",
+    ],
+    srcs = [
+        "server.cc",
+    ],
+    deps = [
+        "@com_google_absl//absl/numeric:int128",
+        "@com_google_absl//absl/time:time",
+        ":drogon",
+        ":sync",
+        ":uint256",
+        ":webcash",
+    ],
+)
+
+cc_library(
     name = "sha2",
     copts = select({
         "@platforms//cpu:x86_64": [
@@ -217,18 +235,13 @@ cc_binary(
     srcs = ["webcashd.cc"],
     deps = [
         "@boost//:filesystem",
-        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/flags:usage",
-        "@com_google_absl//absl/numeric:int128",
         "@com_google_absl//absl/strings:strings",
-        "@com_google_absl//absl/time:time",
         ":async",
         ":drogon",
+        ":server",
         ":sha2",
-        ":sync",
-        ":uint256",
-        ":webcash",
     ],
 )
 
