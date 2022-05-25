@@ -126,7 +126,7 @@ bool check_legalese(
     return terms.asBool();
 }
 
-bool parse_secrets(
+bool parse_secret_webcashes(
     const Json::Value& array,
     std::map<uint256, SecretWebcash>& _webcash
 ){
@@ -225,7 +225,7 @@ void V1::replace(
         return callback(JSONRPCError("no inputs"));
     }
     std::map<uint256, SecretWebcash> inputs;
-    if (!parse_secrets(msg["webcashes"], inputs)) {
+    if (!parse_secret_webcashes(msg["webcashes"], inputs)) {
         return callback(JSONRPCError("can't parse inputs"));
     }
     Amount total_in(0);
@@ -242,7 +242,7 @@ void V1::replace(
         return callback(JSONRPCError("no outputs"));
     }
     std::map<uint256, SecretWebcash> outputs;
-    if (!parse_secrets(msg["new_webcashes"], outputs)) {
+    if (!parse_secret_webcashes(msg["new_webcashes"], outputs)) {
         return callback(JSONRPCError("can't parse inputs"));
     }
     Amount total_out(0);
@@ -382,7 +382,7 @@ void V1::miningReport(
         return callback(JSONRPCError("missing 'webcash' field in preimage"));
     }
     std::map<uint256, SecretWebcash> webcash;
-    if (!parse_secrets(preimage["webcash"], webcash)) {
+    if (!parse_secret_webcashes(preimage["webcash"], webcash)) {
         return callback(JSONRPCError("'webcash' field in preimage needs to be array of webcash secrets"));
     }
 
@@ -391,7 +391,7 @@ void V1::miningReport(
         return callback(JSONRPCError("missing 'subsidy' field in peimage"));
     }
     std::map<uint256, SecretWebcash> subsidy;
-    if (!parse_secrets(preimage["subsidy"], subsidy)) {
+    if (!parse_secret_webcashes(preimage["subsidy"], subsidy)) {
         return callback(JSONRPCError("'subsidy' field in preimage needs to be array of webcash secrets"));
     }
 
