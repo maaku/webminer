@@ -27,7 +27,27 @@ int main(int argc, char **argv)
     std::cout << "Using SHA256 algorithm '" << algo << "'." << std::endl;
 
     // Configure the number of worker threads
-    drogon::app().setThreadNum(get_num_workers());
+    int num_workers = get_num_workers();
+    app.setThreadNum(num_workers);
+
+    // Create the database connection
+    app.createDbClient(
+        "sqlite3",   // dbType
+        "localhost", // host
+        1234,        // port
+        "webcashd",  // databaseName
+        "username",  // username
+        "password",  // password
+        num_workers, // connectionNum
+        "webcashd.sqlite3", // filename
+        "default",   // name
+        false,       // isFast
+        "utf8",      // characterSet
+        10.0         // timeout
+    );
+
+    // Create/upgrade the database tables
+    webcash::upgradeDb();
 
     // Set HTTP listener address and port
     app.addListener("127.0.0.1", 8000);

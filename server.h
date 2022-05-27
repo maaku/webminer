@@ -32,6 +32,10 @@
 #include "uint256.h"
 #include "webcash.h"
 
+namespace webcash {
+void upgradeDb();
+} // webcash
+
 struct MiningReport {
     std::string preimage; // source: client
     absl::uint128 aggregate_work; // cached
@@ -50,6 +54,8 @@ struct WebcashStats {
     absl::uint128 total_circulation = 0;
     absl::uint128 expected_circulation = 0;
     unsigned num_reports;
+    unsigned num_replace;
+    unsigned num_unspent;
     Amount mining_amount;
     Amount subsidy_amount;
     unsigned epoch = 0;
@@ -57,20 +63,16 @@ struct WebcashStats {
 };
 
 class WebcashEconomy {
-public:
-    mutable Mutex cs;
 public: // should be protected:
-    const int64_t INITIAL_MINING_AMOUNT = 20000000000000LL;
-    const int64_t INITIAL_SUBSIDY_AMOUNT = 1000000000000LL;
+    const int64_t k_initial_mining_amount = 20000000000000LL;
+    const int64_t k_initial_subsidy_amount = 1000000000000LL;
+    const unsigned k_reports_per_epoch = 525000U;
+    const absl::Duration k_target_interval = absl::Seconds(10);
     std::atomic<unsigned> difficulty = 28; // cached
     std::atomic<size_t> num_reports = 0; // cached
-
+    std::atomic<size_t> num_replace = 0; // cached
+    std::atomic<size_t> num_unspent = 0; // cached
     absl::Time genesis = absl::Now(); // treated as constant
-    std::map<uint256, Amount> unspent GUARDED_BY(cs);
-    std::set<uint256> spent GUARDED_BY(cs);
-    std::vector<MiningReport> mining_reports GUARDED_BY(cs);
-    std::map<uint256, size_t> proof_of_works GUARDED_BY(cs);
-    std::vector<Replacement> audit_log GUARDED_BY(cs);
 
 public:
     WebcashEconomy() = default;
@@ -82,22 +84,25 @@ public:
         return difficulty.load();
     }
 
-    inline unsigned getEpoch() const {
-        return num_reports.load() / 525000;
+    inline unsigned getEpoch(unsigned num_reports = std::numeric_limits<unsigned>::max()) const {
+        if (num_reports == std::numeric_limits<unsigned>::max()) {
+            num_reports = this->num_reports.load();
+        }
+        return num_reports / k_reports_per_epoch;
     }
 
-    inline Amount getMiningAmount() const {
-        size_t epoch = num_reports.load() / 525000;
+    inline Amount getMiningAmount(unsigned num_reports = std::numeric_limits<unsigned>::max()) const {
+        size_t epoch = getEpoch(num_reports);
         return (epoch > 63)
             ? Amount{0}
-            : Amount{INITIAL_MINING_AMOUNT >> epoch};
+            : Amount{k_initial_mining_amount >> epoch};
     }
 
-    inline Amount getSubsidyAmount() const {
-        size_t epoch = num_reports.load() / 525000;
+    inline Amount getSubsidyAmount(unsigned num_reports = std::numeric_limits<unsigned>::max()) const {
+        size_t epoch = getEpoch(num_reports);
         return (epoch > 63)
             ? Amount{0}
-            : Amount{INITIAL_SUBSIDY_AMOUNT >> epoch};
+            : Amount{k_initial_subsidy_amount >> epoch};
     }
 
     WebcashStats getStats(absl::Time now);
