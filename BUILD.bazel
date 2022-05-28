@@ -7,6 +7,19 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
 
 cc_library(
+    name = "async",
+    hdrs = [
+        "async.h",
+    ],
+    srcs = [
+        "async.cc",
+    ],
+    deps = [
+        "@com_google_absl//absl/flags:flag",
+    ],
+)
+
+cc_library(
     name = "common",
     defines = select({
         "@bazel_tools//src/conditions:windows": ["WIN32"],
@@ -61,6 +74,24 @@ cc_library(
         ":sha2",
         ":sync",
         ":uint256",
+    ],
+)
+
+cc_library(
+    name = "server",
+    hdrs = [
+        "server.h",
+    ],
+    srcs = [
+        "server.cc",
+    ],
+    deps = [
+        "@com_google_absl//absl/numeric:int128",
+        "@com_google_absl//absl/time:time",
+        ":drogon",
+        ":sync",
+        ":uint256",
+        ":webcash",
     ],
 )
 
@@ -151,9 +182,24 @@ cc_library(
         "@boost//:filesystem",
         "@boost//:interprocess",
         "@com_google_absl//absl/strings:strings",
-        ":random",
-        ":sha2",
+        "@com_google_absl//absl/time:time",
+        ":webcash",
         ":sqlite3",
+    ]
+)
+
+cc_library(
+    name = "webcash",
+    hdrs = [
+        "webcash.h",
+    ],
+    srcs = [
+        "webcash.cc",
+    ],
+    deps = [
+        "@com_google_absl//absl/strings:strings",
+        "@com_google_absl//absl/numeric:int128",
+        ":sha2",
         ":uint256",
     ]
 )
@@ -173,18 +219,57 @@ cc_test(
 load("@rules_cc//cc:defs.bzl", "cc_binary")
 
 cc_binary(
-    name = "webminer",
-    srcs = ["main.cc"],
+    name = "bench_webcash",
+    srcs = [
+        "server_bench.cc",
+        "webcash_bench.cc",
+    ],
     deps = [
+        "@com_google_absl//absl/strings:strings",
+        "@com_google_benchmark//:benchmark",
+        "@com_google_benchmark//:benchmark_main",
+        ":async",
+        "cpp_http",
+        ":server",
+        ":random",
+        ":webcash",
+    ],
+)
+
+cc_binary(
+    name = "webcashd",
+    srcs = ["webcashd.cc"],
+    deps = [
+        "@boost//:filesystem",
         "@com_google_absl//absl/flags:parse",
         "@com_google_absl//absl/flags:usage",
         "@com_google_absl//absl/strings:strings",
+        ":async",
+        ":drogon",
+        ":server",
+        ":sha2",
+    ],
+)
+
+cc_binary(
+    name = "webminer",
+    srcs = ["webminer.cc"],
+    deps = [
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/flags:parse",
+        "@com_google_absl//absl/flags:usage",
+        "@com_google_absl//absl/numeric:int128",
+        "@com_google_absl//absl/strings:strings",
+        "@com_google_absl//absl/time:time",
+        ":async",
         ":cpp_http",
         ":random",
         ":sha2",
+        ":sync",
         ":uint256",
         ":univalue",
         ":wallet",
+        ":webcash",
     ],
 )
 
@@ -201,6 +286,34 @@ cmake(
     out_headers_only = True,
 )
 
+cmake(
+    name = "drogon",
+    deps = [
+        "@boost//:filesystem",
+        "@brotli//:brotlidec",
+        "@brotli//:brotlienc",
+        "@jsoncpp//:jsoncpp",
+        ":hiredis",
+        ":sqlite3",
+        ":uuid",
+        ":zlib",
+    ],
+    linkopts = select({
+        "@bazel_tools//src/conditions:linux": ['-ldl', '-luuid'],
+        "//conditions:default": [],
+    }),
+    lib_source = "@drogon//:all_srcs",
+    install = True,
+    out_static_libs = ["libdrogon.a", "libtrantor.a"],
+)
+
+cmake(
+    name = "hiredis",
+    lib_source = "@hiredis//:all_srcs",
+    install = True,
+    out_static_libs = ["libhiredis.a"],
+)
+
 configure_make(
     name = "univalue",
     configure_in_place = True, # Required by autogen=True
@@ -210,6 +323,23 @@ configure_make(
     },
     lib_source = "@univalue//:all_srcs",
     out_static_libs = ["libunivalue.a"],
+)
+
+configure_make(
+    name = "uuid",
+    configure_in_place = True,
+    env = {
+        "AR": "",
+    },
+    lib_source = "@uuid//:all_srcs",
+    out_static_libs = ["libuuid.a"],
+)
+
+cmake(
+    name = "zlib",
+    lib_source = "@zlib//:all_srcs",
+    install = True,
+    out_static_libs = ["libz.a"],
 )
 
 # End of File

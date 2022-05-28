@@ -24,11 +24,7 @@ base_blob<BITS>::base_blob(const std::vector<unsigned char>& vch)
 template <unsigned int BITS>
 std::string base_blob<BITS>::GetHex() const
 {
-    uint8_t m_data_rev[WIDTH];
-    for (int i = 0; i < WIDTH; ++i) {
-        m_data_rev[i] = m_data[WIDTH - 1 - i];
-    }
-    return absl::BytesToHexString(absl::string_view((char*)m_data_rev, WIDTH));
+    return absl::BytesToHexString(absl::string_view((char*)m_data, WIDTH));
 }
 
 // Copied from absl/strings/escaping.cc
@@ -68,6 +64,9 @@ void base_blob<BITS>::SetHex(const char* psz)
             p1++;
         }
     }
+
+    // reverse order
+    std::reverse(begin(), end());
 }
 
 template <unsigned int BITS>

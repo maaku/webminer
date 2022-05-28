@@ -5,3 +5,6 @@ user.bazelrc
 
 webcash.log
 orphans.log
+
+# webcashd
+webcashd.conf

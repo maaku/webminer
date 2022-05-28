@@ -32,6 +32,7 @@
 
 #include <univalue.h>
 
+#include "async.h"
 #include "crypto/sha256.h"
 #include "random.h"
 #include "support/cleanse.h"
@@ -148,27 +149,6 @@ bool check_proof_of_work(const uint256& hash, int difficulty)
     return true;
 }
 
-int get_apparent_difficulty(const uint256& hash)
-{
-    int bits = 0;
-    for (int i = 0; i < 32; ++i) {
-        const unsigned char c = hash.begin()[i];
-        if (c == 0x00) {
-            bits += 8;
-            continue;
-        }
-        if (c == 0x01) return bits + 7;
-        if (c <= 0x03) return bits + 6;
-        if (c <= 0x07) return bits + 5;
-        if (c <= 0x0f) return bits + 4;
-        if (c <= 0x1f) return bits + 3;
-        if (c <= 0x3f) return bits + 2;
-        if (c <= 0x7f) return bits + 1;
-        break;
-    }
-    return bits;
-}
-
 std::string get_speed_string(int64_t attempts, absl::Time begin, absl::Time end) {
     float speed = attempts / absl::ToDoubleSeconds(end - begin);
     if (speed < 2e3f)
@@ -235,7 +215,6 @@ ABSL_FLAG(std::string, server, "https://webcash.tech", "server endpoint");
 ABSL_FLAG(std::string, webcashlog, "webcash.log", "filename to place generated webcash claim codes");
 ABSL_FLAG(std::string, orphanlog, "orphans.log", "filename to place solved proof-of-works the server rejects, and their associated webcash claim codes");
 ABSL_FLAG(std::string, walletfile, "default_wallet", "base filename of wallet files");
-ABSL_FLAG(unsigned, workers, 0, "number of mining threads to spawn");
 ABSL_FLAG(unsigned, maxdifficulty, 80, "disable mining above this difficulty");
 
 void update_thread_func()
@@ -587,20 +566,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    int num_workers = absl::GetFlag(FLAGS_workers);
-    if (num_workers > 1024) {
-        std::cerr << "Error: --workers cannot be larger than 1024" << std::endl;
-        return 1;
-    }
-    if (num_workers == 0) {
-        num_workers = std::thread::hardware_concurrency();
-        if (num_workers != 0) {
-            std::cout << "Auto-detected the hardware concurrency to be " << num_workers << std::endl;
-        } else {
-            std::cout << "Could not auto-detect the hardware concurrency; assuming a value of 1" << std::endl;
-            num_workers = 1;
-        }
-    }
+    int num_workers = get_num_workers();
 
     const std::string algo = SHA256AutoDetect();
     std::cout << "Using SHA256 algorithm '" << algo << "'." << std::endl;
