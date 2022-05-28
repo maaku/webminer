@@ -372,6 +372,7 @@ void TermsOfService::asyncHandleHttpRequest(
 }
 
 namespace api {
+
 //  -----------------
 // | /api/v1/replace |
 //  -----------------
