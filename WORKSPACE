@@ -133,9 +133,9 @@ http_archive(
 http_archive(
     name = "uuid",
     build_file_content = _ALL_CONTENT,
-    strip_prefix = "uuid-1.6.2",
-    url = "https://src.fedoraproject.org/repo/pkgs/uuid/uuid-1.6.2.tar.gz/5db0d43a9022a6ebbbc25337ae28942f/uuid-1.6.2.tar.gz",
-    sha256 = "11a615225baa5f8bb686824423f50e4427acd3f70d394765bdff32801f0fd5b0",
+    strip_prefix = "ossp-uuid-1.6.2.1",
+    url = "https://github.com/maaku/ossp-uuid/archive/refs/tags/1.6.2.1.tar.gz",
+    sha256 = "6e56848c423af781d93c019a92d4064015b3648b37f6b877a2daaf20717e930f",
 )
 
 # zlib source code repository
