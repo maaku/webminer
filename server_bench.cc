@@ -234,6 +234,6 @@ static void Server_replace(benchmark::State& state) {
         "application/json");
     assert(r && r->status == 200);
 }
-BENCHMARK(Server_replace)->Setup(SetupServer)->ThreadRange(1, 256);
+BENCHMARK(Server_replace)->Setup(SetupServer);
 
 // End of File
