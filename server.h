@@ -34,6 +34,7 @@
 
 namespace webcash {
 void upgradeDb();
+void resetDb();
 } // webcash
 
 struct MiningReport {
