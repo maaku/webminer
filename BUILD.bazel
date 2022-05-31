@@ -298,6 +298,9 @@ cmake(
         ":uuid",
         ":zlib",
     ],
+    cache_entries = {
+        "BUILD_C-ARES": "OFF",
+    },
     linkopts = select({
         "@bazel_tools//src/conditions:linux": ['-ldl', '-luuid', '-lcrypto', '-lssl'],
         "//conditions:default": [],
