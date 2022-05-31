@@ -24,6 +24,7 @@
 #include "async.h"
 #include "crypto/sha256.h"
 #include "random.h"
+#include "server.h"
 #include "webcash.h"
 
 using Json::ValueType::objectValue;
@@ -44,12 +45,31 @@ static void SetupServer(const benchmark::State& state) {
     std::promise<void> p1;
     std::future<void> f1 = p1.get_future();
     g_event_loop_thread = std::thread([&]() {
+        int num_workers = get_num_workers();
+        // Create the database connection
+        drogon::app().createDbClient(
+            "sqlite3",   // dbType
+            "localhost", // host
+            1234,        // port
+            "webcashd",  // databaseName
+            "username",  // username
+            "password",  // password
+            num_workers, // connectionNum
+            "bench_webcash.sqlite3", // filename
+            "default",   // name
+            false,       // isFast
+            "utf8",      // characterSet
+            10.0         // timeout
+        );
+        // Setup the database
+        webcash::upgradeDb();
         // Configure the number of worker threads
-        drogon::app().setThreadNum(get_num_workers());
+        drogon::app().setThreadNum(num_workers);
         // Set HTTP listener address and port
         drogon::app().addListener("127.0.0.1", 8000);
         // Queue the promise for fulfillment after the event loop is started.
         drogon::app().getLoop()->queueInLoop([&p1]() {
+            // Signal that the event loop is running
             p1.set_value();
         });
         // Start the main event loop.
