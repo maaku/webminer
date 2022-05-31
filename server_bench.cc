@@ -149,10 +149,10 @@ static void Server_replace(benchmark::State& state) {
 
     // Generate 4 random claim codes to use for transaction replacements in this run.
     static const std::array<std::string, 4> wc = {
-        absl::StrCat("e185.546875:secret:", absl::BytesToHexString(absl::string_view((char*)GetRandHash().begin(), 32))),
-        absl::StrCat("e185.546875:secret:", absl::BytesToHexString(absl::string_view((char*)GetRandHash().begin(), 32))),
-        absl::StrCat("e185.546875:secret:", absl::BytesToHexString(absl::string_view((char*)GetRandHash().begin(), 32))),
-        absl::StrCat("e185.546875:secret:", absl::BytesToHexString(absl::string_view((char*)GetRandHash().begin(), 32))),
+        absl::StrCat("e371.09375:secret:", absl::BytesToHexString(absl::string_view((char*)GetRandHash().begin(), 32))),
+        absl::StrCat("e371.09375:secret:", absl::BytesToHexString(absl::string_view((char*)GetRandHash().begin(), 32))),
+        absl::StrCat("e371.09375:secret:", absl::BytesToHexString(absl::string_view((char*)GetRandHash().begin(), 32))),
+        absl::StrCat("e371.09375:secret:", absl::BytesToHexString(absl::string_view((char*)GetRandHash().begin(), 32))),
     };
 
     // Split generated output in half, so we have two UTXOs
