@@ -95,104 +95,99 @@ void upgradeDb()
         }
         {
             static const std::string sql = "SELECT COUNT(1) FROM \"MiningReports\"";
-            *db << sql
-                >> [=](const Result &r) {
-                    if (r.empty() || !r[0].size()) {
-                        std::cerr << "error: Expected one row of one column containing count.  Got something else." << std::endl;
-                        std::cerr << "error: Offending SQL: " << sql << std::endl;
-                        drogon::app().quit();
-                    }
-                    unsigned num_reports = r[0][0].as<unsigned>();
-                    std::stringstream ss;
-                    ss << "Loaded " << num_reports << " mining reports." << std::endl;
-                    std::cout << ss.str();
-                    webcash::state().num_reports.store(num_reports);
-                }
-                >> [=](const DrogonDbException &e) {
-                    std::cerr << "error: " << e.base().what() << std::endl;
+            try {
+                const Result r = db->execSqlSync(sql);
+                if (r.empty() || !r[0].size()) {
+                    std::cerr << "error: Expected one row of one column containing count.  Got something else." << std::endl;
                     std::cerr << "error: Offending SQL: " << sql << std::endl;
                     drogon::app().quit();
-                };
+                }
+                unsigned num_reports = r[0][0].as<unsigned>();
+                std::stringstream ss;
+                ss << "Loaded " << num_reports << " mining reports." << std::endl;
+                std::cout << ss.str();
+                webcash::state().num_reports.store(num_reports);
+            } catch (const DrogonDbException &e) {
+                std::cerr << "error: " << e.base().what() << std::endl;
+                std::cerr << "error: Offending SQL: " << sql << std::endl;
+                drogon::app().quit();
+            }
         }
         {
             static const std::string sql = "SELECT COUNT(1) FROM \"Replacements\"";
-            *db << sql
-                >> [=](const Result &r) {
-                    if (r.empty() || !r[0].size()) {
-                        std::cerr << "error: Expected one row of one column containing count.  Got something else." << std::endl;
-                        std::cerr << "error: Offending SQL: " << sql << std::endl;
-                        drogon::app().quit();
-                    }
-                    unsigned num_replace = r[0][0].as<unsigned>();
-                    std::stringstream ss;
-                    ss << "Loaded " << num_replace << " transactions." << std::endl;
-                    std::cout << ss.str();
-                    webcash::state().num_replace.store(num_replace);
-                }
-                >> [=](const DrogonDbException &e) {
-                    std::cerr << "error: " << e.base().what() << std::endl;
+            try {
+                const Result r = db->execSqlSync(sql);
+                if (r.empty() || !r[0].size()) {
+                    std::cerr << "error: Expected one row of one column containing count.  Got something else." << std::endl;
                     std::cerr << "error: Offending SQL: " << sql << std::endl;
                     drogon::app().quit();
-                };
+                }
+                unsigned num_replace = r[0][0].as<unsigned>();
+                std::stringstream ss;
+                ss << "Loaded " << num_replace << " transactions." << std::endl;
+                std::cout << ss.str();
+                webcash::state().num_replace.store(num_replace);
+            } catch (const DrogonDbException &e) {
+                std::cerr << "error: " << e.base().what() << std::endl;
+                std::cerr << "error: Offending SQL: " << sql << std::endl;
+                drogon::app().quit();
+            }
         }
         {
             static const std::string sql = "SELECT COUNT(1) FROM \"UnspentOutputs\"";
-            *db << sql
-                >> [=](const Result &r) {
-                    if (r.empty() || !r[0].size()) {
-                        std::cerr << "error: Expected one row of one column containing count.  Got something else." << std::endl;
-                        std::cerr << "error: Offending SQL: " << sql << std::endl;
-                        drogon::app().quit();
-                    }
-                    unsigned num_unspent = r[0][0].as<unsigned>();
-                    std::stringstream ss;
-                    ss << "Loaded " << num_unspent << " unspent webcash." << std::endl;
-                    std::cout << ss.str();
-                    webcash::state().num_unspent.store(num_unspent);
-                }
-                >> [=](const DrogonDbException &e) {
-                    std::cerr << "error: " << e.base().what() << std::endl;
+            try {
+                const Result r = db->execSqlSync(sql);
+                if (r.empty() || !r[0].size()) {
+                    std::cerr << "error: Expected one row of one column containing count.  Got something else." << std::endl;
                     std::cerr << "error: Offending SQL: " << sql << std::endl;
                     drogon::app().quit();
-                };
+                }
+                unsigned num_unspent = r[0][0].as<unsigned>();
+                std::stringstream ss;
+                ss << "Loaded " << num_unspent << " unspent webcash." << std::endl;
+                std::cout << ss.str();
+                webcash::state().num_unspent.store(num_unspent);
+            } catch (const DrogonDbException &e) {
+                std::cerr << "error: " << e.base().what() << std::endl;
+                std::cerr << "error: Offending SQL: " << sql << std::endl;
+                drogon::app().quit();
+            }
         }
         {
             static const std::string sql = "SELECT \"received\" FROM \"MiningReports\" ORDER BY \"id\" ASC LIMIT 1";
-            *db << sql
-                >> [=](const Result &r) {
-                    absl::Time genesis = webcash::state().genesis; // default value
-                    if (!r.empty() && r[0].size()) {
-                        genesis = absl::FromUnixNanos(r[0][0].as<uint64_t>());
-                    }
-                    std::stringstream ss;
-                    ss << "Genesis epoch is " << absl::FormatTime(genesis, absl::UTCTimeZone()) << std::endl;
-                    std::cout << ss.str();
-                    webcash::state().genesis = genesis;
+            try {
+                const Result r = db->execSqlSync(sql);
+                absl::Time genesis = webcash::state().genesis; // default value
+                if (!r.empty() && r[0].size()) {
+                    genesis = absl::FromUnixNanos(r[0][0].as<uint64_t>());
                 }
-                >> [=](const DrogonDbException &e) {
-                    std::cerr << "error: " << e.base().what() << std::endl;
-                    std::cerr << "error: Offending SQL: " << sql << std::endl;
-                    drogon::app().quit();
-                };
+                std::stringstream ss;
+                ss << "Genesis epoch is " << absl::FormatTime(genesis, absl::UTCTimeZone()) << std::endl;
+                std::cout << ss.str();
+                webcash::state().genesis = genesis;
+            } catch (const DrogonDbException &e) {
+                std::cerr << "error: " << e.base().what() << std::endl;
+                std::cerr << "error: Offending SQL: " << sql << std::endl;
+                drogon::app().quit();
+            }
         }
         {
             static const std::string sql = "SELECT \"next_difficulty\" FROM \"MiningReports\" ORDER BY \"id\" DESC LIMIT 1";
-            *db << sql
-                >> [=](const Result &r) {
-                    unsigned difficulty = webcash::state().difficulty.load(); // default value
-                    if (!r.empty() && r[0].size()) {
-                        difficulty = r[0][0].as<unsigned>();
-                    }
-                    std::stringstream ss;
-                    ss << "Current difficulty is " << difficulty << std::endl;
-                    std::cout << ss.str();
-                    webcash::state().difficulty.store(difficulty);
+            try {
+                const Result r = db->execSqlSync(sql);
+                unsigned difficulty = webcash::state().difficulty.load(); // default value
+                if (!r.empty() && r[0].size()) {
+                    difficulty = r[0][0].as<unsigned>();
                 }
-                >> [=](const DrogonDbException &e) {
-                    std::cerr << "error: " << e.base().what() << std::endl;
-                    std::cerr << "error: Offending SQL: " << sql << std::endl;
-                    drogon::app().quit();
-                };
+                std::stringstream ss;
+                ss << "Current difficulty is " << difficulty << std::endl;
+                std::cout << ss.str();
+                webcash::state().difficulty.store(difficulty);
+            } catch (const DrogonDbException &e) {
+                std::cerr << "error: " << e.base().what() << std::endl;
+                std::cerr << "error: Offending SQL: " << sql << std::endl;
+                drogon::app().quit();
+            }
         }
     });}
 } // webcash
