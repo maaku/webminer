@@ -102,9 +102,11 @@ static void _upgradeDb()
                 drogon::app().quit();
             }
             unsigned num_reports = r[0][0].as<unsigned>();
-            std::stringstream ss;
-            ss << "Loaded " << num_reports << " mining reports." << std::endl;
-            std::cout << ss.str();
+            if (webcash::state().logging) {
+                std::stringstream ss;
+                ss << "Loaded " << num_reports << " mining reports." << std::endl;
+                std::cout << ss.str();
+            }
             webcash::state().num_reports.store(num_reports);
         } catch (const DrogonDbException &e) {
             std::cerr << "error: " << e.base().what() << std::endl;
@@ -122,9 +124,11 @@ static void _upgradeDb()
                 drogon::app().quit();
             }
             unsigned num_replace = r[0][0].as<unsigned>();
-            std::stringstream ss;
-            ss << "Loaded " << num_replace << " transactions." << std::endl;
-            std::cout << ss.str();
+            if (webcash::state().logging) {
+                std::stringstream ss;
+                ss << "Loaded " << num_replace << " transactions." << std::endl;
+                std::cout << ss.str();
+            }
             webcash::state().num_replace.store(num_replace);
         } catch (const DrogonDbException &e) {
             std::cerr << "error: " << e.base().what() << std::endl;
@@ -142,9 +146,11 @@ static void _upgradeDb()
                 drogon::app().quit();
             }
             unsigned num_unspent = r[0][0].as<unsigned>();
-            std::stringstream ss;
-            ss << "Loaded " << num_unspent << " unspent webcash." << std::endl;
-            std::cout << ss.str();
+            if (webcash::state().logging) {
+                std::stringstream ss;
+                ss << "Loaded " << num_unspent << " unspent webcash." << std::endl;
+                std::cout << ss.str();
+            }
             webcash::state().num_unspent.store(num_unspent);
         } catch (const DrogonDbException &e) {
             std::cerr << "error: " << e.base().what() << std::endl;
@@ -160,9 +166,11 @@ static void _upgradeDb()
             if (!r.empty() && r[0].size()) {
                 genesis = absl::FromUnixNanos(r[0][0].as<uint64_t>());
             }
-            std::stringstream ss;
-            ss << "Genesis epoch is " << absl::FormatTime(genesis, absl::UTCTimeZone()) << std::endl;
-            std::cout << ss.str();
+            if (webcash::state().logging) {
+                std::stringstream ss;
+                ss << "Genesis epoch is " << absl::FormatTime(genesis, absl::UTCTimeZone()) << std::endl;
+                std::cout << ss.str();
+            }
             webcash::state().genesis = genesis;
         } catch (const DrogonDbException &e) {
             std::cerr << "error: " << e.base().what() << std::endl;
@@ -178,9 +186,11 @@ static void _upgradeDb()
             if (!r.empty() && r[0].size()) {
                 difficulty = r[0][0].as<unsigned>();
             }
-            std::stringstream ss;
-            ss << "Current difficulty is " << difficulty << std::endl;
-            std::cout << ss.str();
+            if (webcash::state().logging) {
+                std::stringstream ss;
+                ss << "Current difficulty is " << difficulty << std::endl;
+                std::cout << ss.str();
+            }
             webcash::state().difficulty.store(difficulty);
         } catch (const DrogonDbException &e) {
             std::cerr << "error: " << e.base().what() << std::endl;
@@ -223,10 +233,14 @@ static void _resetDb()
 void resetDb()
 {
     drogon::app().getLoop()->queueInLoop([]() {
-        std::cout << "Nuking database with "
-                  << webcash::state().num_reports.load() << " mining reports, "
-                  << webcash::state().num_replace.load() << " replacements, and "
-                  << webcash::state().num_unspent.load() << " unspent outputs." << std::endl;
+        if (webcash::state().logging) {
+            std::stringstream ss;
+            ss << "Nuking database with "
+               << webcash::state().num_reports.load() << " mining reports, "
+               << webcash::state().num_replace.load() << " replacements, and "
+               << webcash::state().num_unspent.load() << " unspent outputs." << std::endl;
+            std::cout << ss.str();
+        }
         _resetDb();
     });
 }
@@ -767,14 +781,16 @@ void ReportReplacement(
         webcash::state().num_unspent += state->outputs.size();
         webcash::state().num_unspent -= state->inputs.size();
 
-        std::stringstream ss;
-        ss << "Replaced " << state->inputs.size()
-           << " input for " << state->outputs.size()
-           << " output (total: ₩" << to_string(state->total_in) << ")."
-           << " tx=" << webcash::state().num_replace.load()
-           << " unspent=" << webcash::state().num_unspent.load()
-           << std::endl;
-        std::cout << ss.str();
+        if (webcash::state().logging) {
+            std::stringstream ss;
+            ss << "Replaced " << state->inputs.size()
+               << " input for " << state->outputs.size()
+               << " output (total: ₩" << to_string(state->total_in) << ")."
+               << " tx=" << webcash::state().num_replace.load()
+               << " unspent=" << webcash::state().num_unspent.load()
+               << std::endl;
+            std::cout << ss.str();
+        }
 
         Json::Value ret(objectValue);
         ret["status"] = "success";
@@ -1266,17 +1282,19 @@ void RecordMiningReport(
                 webcash::state().difficulty.store(next_difficulty);
                 webcash::state().num_unspent += state->webcash.size();
 
-                std::stringstream ss;
-                ss << "Got BLOCK!!! " << absl::BytesToHexString(absl::string_view((const char*)state->hash.begin(), 32))
-                   << " aggregate_work=" << log2(aggregate_work)
-                   << " difficulty=" << next_difficulty
-                   << " reports=" << stats.num_reports
-                   << " reports=" << stats.num_reports
-                   << " reports=" << stats.num_reports
-                   << " tx=" << stats.num_replace
-                   << " unspent=" << stats.num_unspent
-                   << std::endl;
-                std::cout << ss.str();
+                if (webcash::state().logging) {
+                    std::stringstream ss;
+                    ss << "Got BLOCK!!! " << absl::BytesToHexString(absl::string_view((const char*)state->hash.begin(), 32))
+                       << " aggregate_work=" << log2(aggregate_work)
+                       << " difficulty=" << next_difficulty
+                       << " reports=" << stats.num_reports
+                       << " reports=" << stats.num_reports
+                       << " reports=" << stats.num_reports
+                       << " tx=" << stats.num_replace
+                       << " unspent=" << stats.num_unspent
+                       << std::endl;
+                    std::cout << ss.str();
+                }
 
                 Json::Value ret(objectValue);
                 ret["status"] = "success";

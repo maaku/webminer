@@ -45,8 +45,10 @@ static void SetupServer(const benchmark::State& state) {
     std::promise<void> p1;
     std::future<void> f1 = p1.get_future();
     g_event_loop_thread = std::thread([&]() {
-        int num_workers = get_num_workers();
+        // Disable logging
+        webcash::state().logging = false;
         // Create the database connection
+        int num_workers = get_num_workers();
         drogon::app().createDbClient(
             "sqlite3",   // dbType
             "localhost", // host

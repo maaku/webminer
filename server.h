@@ -73,7 +73,9 @@ public: // should be protected:
     std::atomic<size_t> num_reports = 0; // cached
     std::atomic<size_t> num_replace = 0; // cached
     std::atomic<size_t> num_unspent = 0; // cached
-    absl::Time genesis = absl::Now(); // treated as constant
+    // treated as constant
+    absl::Time genesis = absl::Now();
+    bool logging = true;
 
 public:
     WebcashEconomy() = default;
