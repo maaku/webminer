@@ -5,6 +5,8 @@ user.bazelrc
 
 webcash.log
 orphans.log
+default_wallet.bak
+default_wallet.db
 
 # webcashd
 webcashd.conf
