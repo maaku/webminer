@@ -8,3 +8,6 @@ orphans.log
 
 # webcashd
 webcashd.conf
+webcashd.sqlite3
+bench_webcash.sqlite3
+test_webcash.sqlite3
