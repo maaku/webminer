@@ -229,7 +229,7 @@ cc_binary(
         "@com_google_benchmark//:benchmark",
         "@com_google_benchmark//:benchmark_main",
         ":async",
-        "cpp_http",
+        ":cpp_http",
         ":server",
         ":random",
         ":webcash",
