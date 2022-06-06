@@ -16,7 +16,6 @@
 
 #include <drogon/HttpAppFramework.h>
 
-#define CPPHTTPLIB_OPENSSL_SUPPORT
 #include <httplib.h>
 
 #include <json/json.h>
