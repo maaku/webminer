@@ -188,6 +188,18 @@ cc_library(
     ]
 )
 
+cc_test(
+    name = "wallet_tests",
+    size = "small",
+    srcs = [
+        "test/wallet.cc",
+    ],
+    deps = [
+        "@com_google_googletest//:gtest_main",
+        ":wallet",
+    ]
+)
+
 cc_library(
     name = "webcash",
     hdrs = [
@@ -201,18 +213,6 @@ cc_library(
         "@com_google_absl//absl/numeric:int128",
         ":sha2",
         ":uint256",
-    ]
-)
-
-cc_test(
-    name = "wallet_tests",
-    size = "small",
-    srcs = [
-        "test/wallet.cc",
-    ],
-    deps = [
-        "@com_google_googletest//:gtest_main",
-        ":wallet",
     ]
 )
 
