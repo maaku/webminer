@@ -8,7 +8,7 @@
 
 #include "wallet.h"
 
-TEST(amount, parase) {
+TEST(amount, parse) {
     {
         Amount amt;
         EXPECT_TRUE(amt.parse("0.1"));
