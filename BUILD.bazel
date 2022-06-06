@@ -95,6 +95,20 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "server_tests",
+    size = "small",
+    srcs = [
+        "test/server.cc",
+    ],
+    deps = [
+        "@com_google_googletest//:gtest_main",
+        ":async",
+        ":cpp_http",
+        ":server",
+    ]
+)
+
 cc_library(
     name = "sha2",
     copts = select({
