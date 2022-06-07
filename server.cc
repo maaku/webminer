@@ -209,12 +209,12 @@ void upgradeDb()
 static void _resetDb()
 {
     const std::array<std::string, 6> drop_tables = {
-        "DROP TABLE IF EXISTS \"MiningReports\"",
-        "DROP TABLE IF EXISTS \"Replacements\"",
-        "DROP TABLE IF EXISTS \"ReplacementInputs\"",
-        "DROP TABLE IF EXISTS \"ReplacementOutputs\"",
-        "DROP TABLE IF EXISTS \"UnspentOutputs\"",
         "DROP TABLE IF EXISTS \"SpentHashes\"",
+        "DROP TABLE IF EXISTS \"UnspentOutputs\"",
+        "DROP TABLE IF EXISTS \"ReplacementOutputs\"",
+        "DROP TABLE IF EXISTS \"ReplacementInputs\"",
+        "DROP TABLE IF EXISTS \"Replacements\"",
+        "DROP TABLE IF EXISTS \"MiningReports\"",
     };
     auto db = drogon::app().getDbClient();
     // Drop tables from database
