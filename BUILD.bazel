@@ -308,12 +308,14 @@ cmake(
         "@brotli//:brotlienc",
         "@jsoncpp//:jsoncpp",
         ":hiredis",
+        ":postgres",
         ":sqlite3",
         ":uuid",
         ":zlib",
     ],
     cache_entries = {
         "BUILD_C-ARES": "OFF",
+        "BUILD_POSTGRESQL": "ON",
     },
     linkopts = select({
         "@bazel_tools//src/conditions:linux": ['-ldl', '-luuid', '-lcrypto', '-lssl'],
@@ -329,6 +331,24 @@ cmake(
     lib_source = "@hiredis//:all_srcs",
     install = True,
     out_static_libs = ["libhiredis.a"],
+)
+
+configure_make(
+    name = "postgres",
+    env = {
+        "AR": "",
+    },
+    lib_source = "@postgres//:all_srcs",
+    out_static_libs = ["libpgcommon.a"],
+    out_shared_libs = select({
+        "@bazel_tools//src/conditions:darwin": [
+            "libpq.dylib",
+        ],
+        "//conditions:default": [
+            "libpq.so",
+            "libpq.so.5",
+        ],
+    }),
 )
 
 configure_make(

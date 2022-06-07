@@ -51,36 +51,36 @@ static void _upgradeDb()
 {
     const std::array<std::string, 6> create_tables = {
         "CREATE TABLE IF NOT EXISTS \"MiningReports\"("
-            "\"id\" INTEGER PRIMARY KEY NOT NULL,"
-            "\"received\" INTEGER NOT NULL,"
+            "\"id\" BIGSERIAL PRIMARY KEY NOT NULL,"
+            "\"received\" BIGINT NOT NULL,"
             "\"preimage\" TEXT UNIQUE NOT NULL,"
-            "\"difficulty\" INTEGER NOT NULL,"
-            "\"next_difficulty\" INTEGER NOT NULL,"
-            "\"aggregate_work\" REAL NOT NULL)",
+            "\"difficulty\" SMALLINT NOT NULL,"
+            "\"next_difficulty\" SMALLINT NOT NULL,"
+            "\"aggregate_work\" DOUBLE PRECISION NOT NULL)",
         "CREATE TABLE IF NOT EXISTS \"Replacements\"("
-            "\"id\" INTEGER PRIMARY KEY NOT NULL,"
-            "\"received\" INTEGER NOT NULL)",
+            "\"id\" BIGSERIAL PRIMARY KEY NOT NULL,"
+            "\"received\" BIGINT NOT NULL)",
         "CREATE TABLE IF NOT EXISTS \"ReplacementInputs\"("
-            "\"id\" INTEGER PRIMARY KEY NOT NULL,"
-            "\"replacement_id\" INTEGER NOT NULL,"
-            "\"hash\" BLOB NOT NULL,"
-            "\"amount\" INTEGER NOT NULL,"
+            "\"id\" BIGSERIAL PRIMARY KEY NOT NULL,"
+            "\"replacement_id\" BIGINT NOT NULL,"
+            "\"hash\" BYTEA NOT NULL,"
+            "\"amount\" BIGINT NOT NULL,"
             "FOREIGN KEY(\"replacement_id\") REFERENCES \"Replacements\"(\"id\"),"
             "UNIQUE(\"hash\", \"replacement_id\"))",
         "CREATE TABLE IF NOT EXISTS \"ReplacementOutputs\"("
-            "\"id\" INTEGER PRIMARY KEY NOT NULL,"
-            "\"replacement_id\" INTEGER NOT NULL,"
-            "\"hash\" BLOB NOT NULL,"
-            "\"amount\" INTEGER NOT NULL,"
+            "\"id\" BIGSERIAL PRIMARY KEY NOT NULL,"
+            "\"replacement_id\" BIGINT NOT NULL,"
+            "\"hash\" BYTEA NOT NULL,"
+            "\"amount\" BIGINT NOT NULL,"
             "FOREIGN KEY(\"replacement_id\") REFERENCES \"Replacements\"(\"id\"),"
             "UNIQUE(\"hash\", \"replacement_id\"))",
         "CREATE TABLE IF NOT EXISTS \"UnspentOutputs\"("
-            "\"id\" INTEGER PRIMARY KEY NOT NULL,"
-            "\"hash\" BLOB UNIQUE NOT NULL,"
-            "\"amount\" INTEGER NOT NULL)",
+            "\"id\" BIGSERIAL PRIMARY KEY NOT NULL,"
+            "\"hash\" BYTEA UNIQUE NOT NULL,"
+            "\"amount\" BIGINT NOT NULL)",
         "CREATE TABLE IF NOT EXISTS \"SpentHashes\"(" // FIXME: This should eventually
-            "\"id\" INTEGER PRIMARY KEY NOT NULL,"    //        be moved to redis?
-            "\"hash\" BLOB UNIQUE NOT NULL)",
+            "\"id\" BIGSERIAL PRIMARY KEY NOT NULL,"  //        be moved to redis?
+            "\"hash\" BYTEA UNIQUE NOT NULL)",
     };
     auto db = drogon::app().getDbClient();
     assert(db);
@@ -550,8 +550,8 @@ void V1::replace(
             return callback(JSONRPCError("overflow"));
         }
         std::string hash_hex = absl::BytesToHexString(absl::string_view((char*)hash.data(), 32));
-        input_values_hash_with_amount.push_back(absl::StrCat("(x'", hash_hex, "',", to_string(wc.amount.i64), ")"));
-        input_values_hash_only.push_back(absl::StrCat("(x'", hash_hex, "')"));
+        input_values_hash_with_amount.push_back(absl::StrCat("('\\x", hash_hex, "'::bytea,", to_string(wc.amount.i64), ")"));
+        input_values_hash_only.push_back(absl::StrCat("('\\x", hash_hex, "'::bytea)"));
     }
 
     // Extract 'outputs'
@@ -574,8 +574,8 @@ void V1::replace(
             return callback(JSONRPCError("overflow"));
         }
         std::string hash_hex = absl::BytesToHexString(absl::string_view((char*)hash.data(), 32));
-        output_values_hash_with_amount.push_back(absl::StrCat("(x'", hash_hex, "',", to_string(wc.amount.i64), ")"));
-        output_values_hash_only.push_back(absl::StrCat("(x'", hash_hex, "')"));
+        output_values_hash_with_amount.push_back(absl::StrCat("('\\x", hash_hex, "'::bytea,", to_string(wc.amount.i64), ")"));
+        output_values_hash_only.push_back(absl::StrCat("('\\x", hash_hex, "'::bytea)"));
     }
 
     // Check inputs == outputs
@@ -586,11 +586,11 @@ void V1::replace(
     // Prepare SQL statements
     state->sql_check_inputs = absl::StrCat("WITH \"InputHashAmount\"(\"hash\",\"amount\") AS (VALUES", absl::StrJoin(input_values_hash_with_amount, ","), ") SELECT COUNT(1) FROM \"UnspentOutputs\" INNER JOIN \"InputHashAmount\" ON \"UnspentOutputs\".\"hash\"=\"InputHashAmount\".\"hash\" AND \"UnspentOutputs\".\"amount\"=\"InputHashAmount\".\"amount\"");
     state->sql_check_outputs = absl::StrCat("SELECT COUNT(1) FROM \"UnspentOutputs\" WHERE \"hash\" IN (", absl::StrJoin(output_values_hash_only, ","), ")");
-    state->sql_store_spends = absl::StrCat("INSERT OR IGNORE INTO \"SpentHashes\" (\"hash\") VALUES", absl::StrJoin(input_values_hash_only, ","));
-    state->sql_delete_inputs = absl::StrCat("DELETE FROM \"UnspentOutputs\" WHERE \"hash\" IN (SELECT * FROM (VALUES", absl::StrJoin(input_values_hash_only, ","), "))");
+    state->sql_store_spends = absl::StrCat("INSERT INTO \"SpentHashes\" (\"hash\") VALUES", absl::StrJoin(input_values_hash_only, ","), "ON CONFLICT DO NOTHING");
+    state->sql_delete_inputs = absl::StrCat("DELETE FROM \"UnspentOutputs\" WHERE \"hash\" IN (SELECT * FROM (VALUES", absl::StrJoin(input_values_hash_only, ","), ") AS hashes)");
     state->sql_insert_outputs = absl::StrCat("INSERT INTO \"UnspentOutputs\" (\"hash\", \"amount\") VALUES", absl::StrJoin(output_values_hash_with_amount, ","));
-    state->sql_audit_log_inputs = absl::StrCat("INSERT INTO \"ReplacementInputs\" (\"replacement_id\", \"hash\", \"amount\") SELECT ?, * FROM (VALUES", absl::StrJoin(input_values_hash_with_amount, ","), ")");
-    state->sql_audit_log_outputs = absl::StrCat("INSERT INTO \"ReplacementOutputs\" (\"replacement_id\", \"hash\", \"amount\") SELECT ?, * FROM (VALUES", absl::StrJoin(output_values_hash_with_amount, ","), ")");
+    state->sql_audit_log_inputs = absl::StrCat("INSERT INTO \"ReplacementInputs\" (\"replacement_id\", \"hash\", \"amount\") SELECT $1, * FROM (VALUES", absl::StrJoin(input_values_hash_with_amount, ","), ") AS inputs");
+    state->sql_audit_log_outputs = absl::StrCat("INSERT INTO \"ReplacementOutputs\" (\"replacement_id\", \"hash\", \"amount\") SELECT $1, * FROM (VALUES", absl::StrJoin(output_values_hash_with_amount, ","), ") AS outputs");
 
     // Now we perform checks that require access to global state.
     auto db = drogon::app().getDbClient();
@@ -720,11 +720,16 @@ void RecordToAuditLog(
     std::shared_ptr<ReplacementState> state,
     std::shared_ptr<Transaction> tx
 ){
-    static const std::string sql = absl::StrCat("INSERT INTO \"Replacements\" (\"received\") VALUES(?)");
+    static const std::string sql = absl::StrCat("INSERT INTO \"Replacements\" (\"received\") VALUES($1) RETURNING \"id\"");
     *tx << sql
         << absl::ToUnixNanos(state->received)
         >> [=](const Result &r) {
-            state->replacement_id = r.insertId();
+            if (r.empty() || !r[0].size() || !(state->replacement_id = r[0][0].as<uint64_t>())) {
+                std::cerr << "error: Expected one row of one column containing inserted id.  Got something else." << std::endl;
+                std::cerr << "error: Offending SQL: " << state->sql_check_outputs << std::endl;
+                tx->rollback();
+                return callback(JSONRPCError("sql error"));
+            }
             RecordToAuditLogInputs(callback, state, tx);
         }
         >> [=](const DrogonDbException &e) {
@@ -986,8 +991,8 @@ void V1::miningReport(
             return callback(JSONRPCError("overflow"));
         }
         const std::string hash_hex = absl::BytesToHexString(absl::string_view((char*)item.first.data(), 32));
-        output_values_with_amount.push_back(absl::StrCat("(x'", hash_hex, "',", to_string(item.second.amount.i64), ")"));
-        output_values_hash_only.push_back(absl::StrCat("x'", hash_hex, "'"));
+        output_values_with_amount.push_back(absl::StrCat("('\\x", hash_hex, "'::bytea,", to_string(item.second.amount.i64), ")"));
+        output_values_hash_only.push_back(absl::StrCat("'\\x", hash_hex, "'::bytea"));
     }
 
     // Check 'subsidy'
@@ -1143,7 +1148,7 @@ void CheckNewMiningReportPreimage(
     std::shared_ptr<MiningReportState> state,
     std::shared_ptr<Transaction> tx
 ){
-    static const std::string sql = "SELECT COUNT(1) FROM \"MiningReports\" WHERE \"preimage\"=?";
+    static const std::string sql = "SELECT COUNT(1) FROM \"MiningReports\" WHERE \"preimage\"=$1";
     *tx << sql
         << state->preimage
         >> [=](const Result &r) {
@@ -1265,12 +1270,12 @@ void RecordMiningReport(
         }
     }
 
-    static const std::string sql = "INSERT INTO \"MiningReports\" (\"received\", \"preimage\", \"difficulty\", \"next_difficulty\", \"aggregate_work\") VALUES(?, ?, ?, ?, ?)";
+    static const std::string sql = "INSERT INTO \"MiningReports\" (\"received\", \"preimage\", \"difficulty\", \"next_difficulty\", \"aggregate_work\") VALUES($1, $2, $3, $4, $5)";
     *tx << sql
         << absl::ToUnixNanos(state->received)
         << state->preimage
-        << state->current_difficulty
-        << next_difficulty
+        << static_cast<int16_t>(state->current_difficulty)
+        << static_cast<int16_t>(next_difficulty)
         << aggregate_work
         >> [=](const Result &r) {
             // FIXME: claim server funds?
@@ -1366,7 +1371,7 @@ void V1::healthCheck(
 
     std::vector<std::string> values;
     for (const auto& pk : state->args) {
-        values.push_back(absl::StrCat("x'", absl::BytesToHexString(absl::string_view((char*)pk.pk.data(), 32)), "'"));
+        values.push_back(absl::StrCat("'\\x", absl::BytesToHexString(absl::string_view((char*)pk.pk.data(), 32)), "'::bytea"));
     }
     state->sql_unspent = absl::StrCat("SELECT \"hash\", \"amount\" FROM \"UnspentOutputs\" WHERE \"hash\" IN (", absl::StrJoin(values, ","), ")");
     state->sql_spent = absl::StrCat("SELECT \"hash\" FROM \"SpentHashes\" WHERE \"hash\" IN (", absl::StrJoin(values, ","), ")");

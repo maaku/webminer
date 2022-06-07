@@ -120,6 +120,15 @@ http_archive(
     ],
 )
 
+# postgres source code repository
+http_archive(
+    name = "postgres",
+    build_file_content = _ALL_CONTENT,
+    strip_prefix = "postgresql-13.2",
+    url = "https://ftp.postgresql.org/pub/source/v13.2/postgresql-13.2.tar.gz",
+    sha256 = "3386a40736332aceb055c7c9012ecc665188536d874d967fcc5a33e7992f8080",
+)
+
 # univalue source code repository
 http_archive(
     name = "univalue",

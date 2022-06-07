@@ -33,14 +33,14 @@ static void SetupServer() {
         // Create the database connection
         int num_workers = get_num_workers();
         drogon::app().createDbClient(
-            "sqlite3",   // dbType
+            "postgres",  // dbType
             "localhost", // host
-            1234,        // port
-            "webcashd",  // databaseName
-            "username",  // username
-            "password",  // password
+            5432,        // port
+            "postgres",  // databaseName
+            "postgres",  // username
+            "mysecretpassword",  // password
             num_workers, // connectionNum
-            "test_webcash.sqlite3", // filename
+            "test_webcash", // filename
             "default",   // name
             false,       // isFast
             "utf8",      // characterSet

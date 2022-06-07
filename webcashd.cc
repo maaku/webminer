@@ -32,14 +32,14 @@ int main(int argc, char **argv)
 
     // Create the database connection
     app.createDbClient(
-        "sqlite3",   // dbType
+        "postgresql", // dbType
         "localhost", // host
-        1234,        // port
-        "webcashd",  // databaseName
-        "username",  // username
-        "password",  // password
+        5432,        // port
+        "postgres",  // databaseName
+        "postgres",  // username
+        "mysecretpassword", // password
         num_workers, // connectionNum
-        "webcashd.sqlite3", // filename
+        "webcashd",  // filename
         "default",   // name
         false,       // isFast
         "utf8",      // characterSet
