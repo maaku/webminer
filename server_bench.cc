@@ -149,7 +149,7 @@ static void Server_replace(benchmark::State& state) {
     }
 
     // Generate 4 random claim codes to use for transaction replacements in this run.
-    static const std::array<std::string, 4> wc = {
+    const std::array<std::string, 4> wc = {
         absl::StrCat("e371.09375:secret:", absl::BytesToHexString(absl::string_view((char*)GetRandHash().begin(), 32))),
         absl::StrCat("e371.09375:secret:", absl::BytesToHexString(absl::string_view((char*)GetRandHash().begin(), 32))),
         absl::StrCat("e371.09375:secret:", absl::BytesToHexString(absl::string_view((char*)GetRandHash().begin(), 32))),
@@ -176,7 +176,7 @@ static void Server_replace(benchmark::State& state) {
 
     // The replacement requests, each of which have two inputs and two outputs,
     // and cycle between them.
-    static const std::array<std::string, 2> replacements = {
+    const std::array<std::string, 2> replacements = {
         absl::StrCat("{"
             "\"legalese\": {"
                 "\"terms\": true"
