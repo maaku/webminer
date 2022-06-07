@@ -83,6 +83,7 @@ static void _upgradeDb()
             "\"hash\" BLOB UNIQUE NOT NULL)",
     };
     auto db = drogon::app().getDbClient();
+    assert(db);
     for (const std::string& sql : create_tables) {
         try {
             db->execSqlSync(sql);
