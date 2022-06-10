@@ -23,5 +23,3 @@ COPY --from=builder /webminer/bazel-bin /webminer
 
 WORKDIR /host
 ENTRYPOINT ["/webminer/webminer"]
-CMD ["--acceptterms"]
-
