@@ -40,7 +40,7 @@ static void SetupServer() {
             "postgres",  // username
             "mysecretpassword",  // password
             num_workers, // connectionNum
-            "test_webcash", // filename
+            "server_test", // filename
             "default",   // name
             false,       // isFast
             "utf8",      // characterSet
