@@ -60,6 +60,51 @@ tail -F webcash.log | xargs -n 1 webcash insert
 
 WARNING: You *must* claim the generated webcash in a wallet quickly after generating them, or else you risk forfeiting the funds if/when your mining report is released.  Mining reports are not treated as sensitive data, so this can happen at any time!
 
+# Webcash server (EXPERIMENTAL)
+
+This repository also contains a reimplementation of the webcash server daemon.  To run the webcash server you need a few extra build and runtime dependencies in addition to all the webminer dependencies mentioned above.  On macOS you have two options: either install the full PostgreSQL (e.g. via `brew install postgresql`), or inst just the needed client library and perform some manual environment setup yourself:
+
+```
+# macOS
+brew install libpq
+brew link --force libpq
+sudo ln -s /opt/homebrew/lib/libpq.5.dylib /usr/local/lib
+```
+
+On Linux it is sufficient to just install the client libraries, but due to a bug in the reproducable build system some other build dependencies are required:
+
+```
+# ubuntu/debian
+sudo apt-get install libpq-dev libssl-dev uuid-dev
+```
+
+Note: If you previously tried to build `webcashd` or its dependencies (e.g. for the server benchmarks or tests), you will need to clean the bazel build cache with `bazel clean` after installing the above build dependencies.  This is because the `drogon` web server detects PostgreSQL support during build time, and the installation of the missing dependencies which should trigger a rebuild isn't picked up by the bazel build system.
+
+In addition you need a PostgreSQL instance for the server to talk to.  To make setup easier, a docker-compose configuration is provided that sets up PostgreSQL configured the way we need it.  Simply install [Docker Desktop](https://docker.com/get-started/) and run the following from the base directory of the repository:
+
+```
+docker compose -f stack.yml up
+```
+
+(If you run into a permissions problem, you may need to add your user to the `docker` group first.)
+
+This command will not terminate; the `docker-compose` command will continue to run showing you the database logs until you use <kbd>Ctrl</kbd>+<kbd>C</kbd> to stop the container.
+
+Once the docker container is up and running (you'll see a log output that says `listening on IPv4 address "0.0.0.0", port 5432`), you can open another terminal window to run the webcash server and/or tests.
+
+To run the tests:
+
+```
+bazel test -c opt $(bazel query //...)
+```
+
+To run the webcash server:
+
+```
+bazel build -c opt webcashd
+bazel-bin/webcashd
+```
+
 # License
 
 This repository and its source code is distributed under the terms of the Mozilla Public License 2.0.  See MPL-2.0.txt.
