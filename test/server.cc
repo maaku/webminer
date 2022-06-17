@@ -33,7 +33,7 @@ static void SetupServer() {
         // Create the database connection
         int num_workers = get_num_workers();
         drogon::app().createDbClient(
-            "postgres",  // dbType
+            "postgresql", // dbType
             "localhost", // host
             5432,        // port
             "postgres",  // databaseName
