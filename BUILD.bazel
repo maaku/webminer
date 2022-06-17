@@ -105,6 +105,7 @@ cc_test(
         "@com_google_googletest//:gtest_main",
         ":async",
         ":cpp_http",
+        ":drogon",
         ":server",
     ]
 )
