@@ -54,8 +54,6 @@ static void SetupServer() {
         drogon::app().addListener("127.0.0.1", 8000);
         // Queue the promise for fulfillment after the event loop is started.
         drogon::app().getLoop()->queueInLoop([&p1]() {
-            // Clear the database
-            webcash::resetDb();
             // Signal that the event loop is running
             p1.set_value();
         });
@@ -81,6 +79,8 @@ static void TeardownServer() {
 TEST(server, connection) {
     // Setup server and begin listening
     SetupServer();
+    // Clear the database
+    webcash::resetDb();
     // Setup RPC client to communicate with server
     httplib::Client cli("http://localhost:8000");
     cli.set_read_timeout(60, 0); // 60 seconds
