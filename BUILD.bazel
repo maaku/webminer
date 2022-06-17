@@ -318,7 +318,7 @@ cmake(
         "BUILD_POSTGRESQL": "ON",
     },
     linkopts = select({
-        "@bazel_tools//src/conditions:linux": ['-ldl', '-luuid', '-lcrypto', '-lssl'],
+        "@bazel_tools//src/conditions:linux": ['-ldl', '-luuid', '-lcrypto', '-lssl', '-lstdc++fs'],
         "//conditions:default": [],
     }),
     lib_source = "@drogon//:all_srcs",
@@ -338,6 +338,9 @@ configure_make(
     env = {
         "AR": "",
     },
+    configure_options = [
+        "--without-readline",
+    ],
     lib_source = "@postgres//:all_srcs",
     out_static_libs = ["libpgcommon.a"],
     out_shared_libs = select({
