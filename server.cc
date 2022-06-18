@@ -1253,8 +1253,8 @@ void RecordMiningReport(
     unsigned next_difficulty = state->current_difficulty;
     WebcashStats stats = webcash::state().getStats(state->received);
     unsigned num_reports = stats.num_reports + 1;
-    if ((num_reports & 0x7f) == 0) { // mod 128
-        size_t look_back_window = 128; // about 10 to 15 minutes
+    if ((num_reports % WebcashEconomy::k_reports_per_interval) == 0) {
+        size_t look_back_window = WebcashEconomy::k_look_back_window;
         if (num_reports == look_back_window) {
             --look_back_window;
         }

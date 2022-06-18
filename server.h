@@ -68,6 +68,8 @@ public: // should be protected:
     const int64_t k_initial_mining_amount = 20000000000000LL;
     const int64_t k_initial_subsidy_amount = 1000000000000LL;
     const unsigned k_reports_per_epoch = 525000U;
+    static const unsigned k_reports_per_interval = 128; // about 10 to 15 minutes
+    static const unsigned k_look_back_window = 128;
     const absl::Duration k_target_interval = absl::Seconds(10);
     std::atomic<unsigned> difficulty = 28; // cached
     std::atomic<size_t> num_reports = 0; // cached
