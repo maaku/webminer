@@ -56,31 +56,31 @@ static void _upgradeDb()
             "\"preimage\" TEXT UNIQUE NOT NULL,"
             "\"difficulty\" SMALLINT NOT NULL,"
             "\"next_difficulty\" SMALLINT NOT NULL,"
-            "\"aggregate_work\" DOUBLE PRECISION NOT NULL);",
+            "\"aggregate_work\" DOUBLE PRECISION NOT NULL)",
         "CREATE TABLE IF NOT EXISTS \"Replacements\"("
             "\"id\" BIGSERIAL PRIMARY KEY NOT NULL,"
-            "\"received\" BIGINT NOT NULL);",
+            "\"received\" BIGINT NOT NULL)",
         "CREATE TABLE IF NOT EXISTS \"ReplacementInputs\"("
             "\"id\" BIGSERIAL PRIMARY KEY NOT NULL,"
             "\"replacement_id\" BIGINT NOT NULL,"
             "\"hash\" BYTEA NOT NULL,"
             "\"amount\" BIGINT NOT NULL,"
             "FOREIGN KEY(\"replacement_id\") REFERENCES \"Replacements\"(\"id\"),"
-            "UNIQUE(\"hash\", \"replacement_id\"));",
+            "UNIQUE(\"hash\", \"replacement_id\"))",
         "CREATE TABLE IF NOT EXISTS \"ReplacementOutputs\"("
             "\"id\" BIGSERIAL PRIMARY KEY NOT NULL,"
             "\"replacement_id\" BIGINT NOT NULL,"
             "\"hash\" BYTEA NOT NULL,"
             "\"amount\" BIGINT NOT NULL,"
             "FOREIGN KEY(\"replacement_id\") REFERENCES \"Replacements\"(\"id\"),"
-            "UNIQUE(\"hash\", \"replacement_id\"));",
+            "UNIQUE(\"hash\", \"replacement_id\"))",
         "CREATE TABLE IF NOT EXISTS \"UnspentOutputs\"("
             "\"id\" BIGSERIAL PRIMARY KEY NOT NULL,"
             "\"hash\" BYTEA UNIQUE NOT NULL,"
-            "\"amount\" BIGINT NOT NULL);",
+            "\"amount\" BIGINT NOT NULL)",
         "CREATE TABLE IF NOT EXISTS \"SpentHashes\"(" // FIXME: This should eventually
             "\"id\" BIGSERIAL PRIMARY KEY NOT NULL,"  //        be moved to redis?
-            "\"hash\" BYTEA UNIQUE NOT NULL);",
+            "\"hash\" BYTEA UNIQUE NOT NULL)",
     };
     auto db = drogon::app().getDbClient();
     assert(db);
@@ -94,7 +94,7 @@ static void _upgradeDb()
         }
     }
     {
-        static const std::string sql = "SELECT COUNT(1) FROM \"MiningReports\";";
+        static const std::string sql = "SELECT COUNT(1) FROM \"MiningReports\"";
         try {
             const Result r = db->execSqlSync(sql);
             if (r.empty() || !r[0].size()) {
@@ -116,7 +116,7 @@ static void _upgradeDb()
         }
     }
     {
-        static const std::string sql = "SELECT COUNT(1) FROM \"Replacements\";";
+        static const std::string sql = "SELECT COUNT(1) FROM \"Replacements\"";
         try {
             const Result r = db->execSqlSync(sql);
             if (r.empty() || !r[0].size()) {
@@ -138,7 +138,7 @@ static void _upgradeDb()
         }
     }
     {
-        static const std::string sql = "SELECT COUNT(1) FROM \"UnspentOutputs\";";
+        static const std::string sql = "SELECT COUNT(1) FROM \"UnspentOutputs\"";
         try {
             const Result r = db->execSqlSync(sql);
             if (r.empty() || !r[0].size()) {
@@ -160,7 +160,7 @@ static void _upgradeDb()
         }
     }
     {
-        static const std::string sql = "SELECT \"received\" FROM \"MiningReports\" ORDER BY \"id\" ASC LIMIT 1;";
+        static const std::string sql = "SELECT \"received\" FROM \"MiningReports\" ORDER BY \"id\" ASC LIMIT 1";
         try {
             const Result r = db->execSqlSync(sql);
             absl::Time genesis = webcash::state().genesis; // default value
@@ -180,7 +180,7 @@ static void _upgradeDb()
         }
     }
     {
-        static const std::string sql = "SELECT \"next_difficulty\" FROM \"MiningReports\" ORDER BY \"id\" DESC LIMIT 1;";
+        static const std::string sql = "SELECT \"next_difficulty\" FROM \"MiningReports\" ORDER BY \"id\" DESC LIMIT 1";
         try {
             const Result r = db->execSqlSync(sql);
             unsigned difficulty = webcash::state().difficulty.load(); // default value
@@ -202,27 +202,20 @@ static void _upgradeDb()
 }
 void upgradeDb()
 {
-    // Create a promise which will only be fulfilled after the database is
-    // upgraded.
-    std::promise<void> p1;
-    std::future<void> f1 = p1.get_future();
-    // Queue the database upgrade to run after the main loop.
-    drogon::app().getLoop()->queueInLoop([&p1]() {
+    drogon::app().getLoop()->queueInLoop([]() {
         _upgradeDb();
-        p1.set_value();
     });
-    f1.get();
 }
 
 static void _resetDb()
 {
     const std::array<std::string, 6> drop_tables = {
-        "DROP TABLE IF EXISTS \"SpentHashes\";",
-        "DROP TABLE IF EXISTS \"UnspentOutputs\";",
-        "DROP TABLE IF EXISTS \"ReplacementOutputs\";",
-        "DROP TABLE IF EXISTS \"ReplacementInputs\";",
-        "DROP TABLE IF EXISTS \"Replacements\";",
-        "DROP TABLE IF EXISTS \"MiningReports\";",
+        "DROP TABLE IF EXISTS \"SpentHashes\"",
+        "DROP TABLE IF EXISTS \"UnspentOutputs\"",
+        "DROP TABLE IF EXISTS \"ReplacementOutputs\"",
+        "DROP TABLE IF EXISTS \"ReplacementInputs\"",
+        "DROP TABLE IF EXISTS \"Replacements\"",
+        "DROP TABLE IF EXISTS \"MiningReports\"",
     };
     auto db = drogon::app().getDbClient();
     // Drop tables from database
@@ -591,13 +584,13 @@ void V1::replace(
     }
 
     // Prepare SQL statements
-    state->sql_check_inputs = absl::StrCat("WITH \"InputHashAmount\"(\"hash\",\"amount\") AS (VALUES", absl::StrJoin(input_values_hash_with_amount, ","), ") SELECT COUNT(1) FROM \"UnspentOutputs\" INNER JOIN \"InputHashAmount\" ON \"UnspentOutputs\".\"hash\"=\"InputHashAmount\".\"hash\" AND \"UnspentOutputs\".\"amount\"=\"InputHashAmount\".\"amount\";");
-    state->sql_check_outputs = absl::StrCat("SELECT COUNT(1) FROM \"UnspentOutputs\" WHERE \"hash\" IN (", absl::StrJoin(output_values_hash_only, ","), ");");
-    state->sql_store_spends = absl::StrCat("INSERT INTO \"SpentHashes\" (\"hash\") VALUES", absl::StrJoin(input_values_hash_only, ","), "ON CONFLICT DO NOTHING;");
-    state->sql_delete_inputs = absl::StrCat("DELETE FROM \"UnspentOutputs\" WHERE \"hash\" IN (SELECT * FROM (VALUES", absl::StrJoin(input_values_hash_only, ","), ") AS hashes);");
-    state->sql_insert_outputs = absl::StrCat("INSERT INTO \"UnspentOutputs\" (\"hash\", \"amount\") VALUES", absl::StrJoin(output_values_hash_with_amount, ","), ";");
-    state->sql_audit_log_inputs = absl::StrCat("INSERT INTO \"ReplacementInputs\" (\"replacement_id\", \"hash\", \"amount\") SELECT $1, * FROM (VALUES", absl::StrJoin(input_values_hash_with_amount, ","), ") AS inputs;");
-    state->sql_audit_log_outputs = absl::StrCat("INSERT INTO \"ReplacementOutputs\" (\"replacement_id\", \"hash\", \"amount\") SELECT $1, * FROM (VALUES", absl::StrJoin(output_values_hash_with_amount, ","), ") AS outputs;");
+    state->sql_check_inputs = absl::StrCat("WITH \"InputHashAmount\"(\"hash\",\"amount\") AS (VALUES", absl::StrJoin(input_values_hash_with_amount, ","), ") SELECT COUNT(1) FROM \"UnspentOutputs\" INNER JOIN \"InputHashAmount\" ON \"UnspentOutputs\".\"hash\"=\"InputHashAmount\".\"hash\" AND \"UnspentOutputs\".\"amount\"=\"InputHashAmount\".\"amount\"");
+    state->sql_check_outputs = absl::StrCat("SELECT COUNT(1) FROM \"UnspentOutputs\" WHERE \"hash\" IN (", absl::StrJoin(output_values_hash_only, ","), ")");
+    state->sql_store_spends = absl::StrCat("INSERT INTO \"SpentHashes\" (\"hash\") VALUES", absl::StrJoin(input_values_hash_only, ","), "ON CONFLICT DO NOTHING");
+    state->sql_delete_inputs = absl::StrCat("DELETE FROM \"UnspentOutputs\" WHERE \"hash\" IN (SELECT * FROM (VALUES", absl::StrJoin(input_values_hash_only, ","), ") AS hashes)");
+    state->sql_insert_outputs = absl::StrCat("INSERT INTO \"UnspentOutputs\" (\"hash\", \"amount\") VALUES", absl::StrJoin(output_values_hash_with_amount, ","));
+    state->sql_audit_log_inputs = absl::StrCat("INSERT INTO \"ReplacementInputs\" (\"replacement_id\", \"hash\", \"amount\") SELECT $1, * FROM (VALUES", absl::StrJoin(input_values_hash_with_amount, ","), ") AS inputs");
+    state->sql_audit_log_outputs = absl::StrCat("INSERT INTO \"ReplacementOutputs\" (\"replacement_id\", \"hash\", \"amount\") SELECT $1, * FROM (VALUES", absl::StrJoin(output_values_hash_with_amount, ","), ") AS outputs");
 
     // Now we perform checks that require access to global state.
     auto db = drogon::app().getDbClient();
@@ -727,7 +720,7 @@ void RecordToAuditLog(
     std::shared_ptr<ReplacementState> state,
     std::shared_ptr<Transaction> tx
 ){
-    static const std::string sql = absl::StrCat("INSERT INTO \"Replacements\" (\"received\") VALUES($1) RETURNING \"id\";");
+    static const std::string sql = absl::StrCat("INSERT INTO \"Replacements\" (\"received\") VALUES($1) RETURNING \"id\"");
     *tx << sql
         << absl::ToUnixNanos(state->received)
         >> [=](const Result &r) {
@@ -1045,8 +1038,8 @@ void V1::miningReport(
     }
 
     // Preconstruct SQL queries.
-    state->sql_check_outputs = absl::StrCat("SELECT COUNT(1) FROM \"UnspentOutputs\" WHERE \"hash\" IN (", absl::StrJoin(output_values_hash_only, ","), ");");
-    state->sql_insert_outputs = absl::StrCat("INSERT INTO \"UnspentOutputs\" (\"hash\", \"amount\") VALUES", absl::StrJoin(output_values_with_amount, ","), ";");
+    state->sql_check_outputs = absl::StrCat("SELECT COUNT(1) FROM \"UnspentOutputs\" WHERE \"hash\" IN (", absl::StrJoin(output_values_hash_only, ","), ")");
+    state->sql_insert_outputs = absl::StrCat("INSERT INTO \"UnspentOutputs\" (\"hash\", \"amount\") VALUES", absl::StrJoin(output_values_with_amount, ","));
 
     // Now we perform checks that require access to global state.
     auto db = drogon::app().getDbClient();
@@ -1066,7 +1059,7 @@ void SelectLastMiningReport(
     std::shared_ptr<MiningReportState> state,
     std::shared_ptr<Transaction> tx
 ){
-    static const std::string sql = "SELECT \"received\", \"difficulty\", \"next_difficulty\", \"aggregate_work\" FROM \"MiningReports\" ORDER BY \"id\" DESC LIMIT 1;";
+    static const std::string sql = "SELECT \"received\", \"difficulty\", \"next_difficulty\", \"aggregate_work\" FROM \"MiningReports\" ORDER BY \"id\" DESC LIMIT 1";
     *tx << sql
         >> [=](bool is_null, int64_t received, unsigned difficulty, unsigned next_difficulty, double aggregate_work) {
             if (!is_null) {
@@ -1129,7 +1122,7 @@ void SelectNumMiningReports(
     std::shared_ptr<MiningReportState> state,
     std::shared_ptr<Transaction> tx
 ){
-    static const std::string sql = "SELECT COUNT(1) FROM \"MiningReports\";";
+    static const std::string sql = "SELECT COUNT(1) FROM \"MiningReports\"";
     *tx << sql
         >> [=](const Result& r) {
             if (r.empty() || !r[0].size()) {
@@ -1155,7 +1148,7 @@ void CheckNewMiningReportPreimage(
     std::shared_ptr<MiningReportState> state,
     std::shared_ptr<Transaction> tx
 ){
-    static const std::string sql = "SELECT COUNT(1) FROM \"MiningReports\" WHERE \"preimage\"=$1;";
+    static const std::string sql = "SELECT COUNT(1) FROM \"MiningReports\" WHERE \"preimage\"=$1";
     *tx << sql
         << state->preimage
         >> [=](const Result &r) {
@@ -1277,7 +1270,7 @@ void RecordMiningReport(
         }
     }
 
-    static const std::string sql = "INSERT INTO \"MiningReports\" (\"received\", \"preimage\", \"difficulty\", \"next_difficulty\", \"aggregate_work\") VALUES($1, $2, $3, $4, $5);";
+    static const std::string sql = "INSERT INTO \"MiningReports\" (\"received\", \"preimage\", \"difficulty\", \"next_difficulty\", \"aggregate_work\") VALUES($1, $2, $3, $4, $5)";
     *tx << sql
         << absl::ToUnixNanos(state->received)
         << state->preimage
@@ -1380,8 +1373,8 @@ void V1::healthCheck(
     for (const auto& pk : state->args) {
         values.push_back(absl::StrCat("'\\x", absl::BytesToHexString(absl::string_view((char*)pk.pk.data(), 32)), "'::bytea"));
     }
-    state->sql_unspent = absl::StrCat("SELECT \"hash\", \"amount\" FROM \"UnspentOutputs\" WHERE \"hash\" IN (", absl::StrJoin(values, ","), ");");
-    state->sql_spent = absl::StrCat("SELECT \"hash\" FROM \"SpentHashes\" WHERE \"hash\" IN (", absl::StrJoin(values, ","), ");");
+    state->sql_unspent = absl::StrCat("SELECT \"hash\", \"amount\" FROM \"UnspentOutputs\" WHERE \"hash\" IN (", absl::StrJoin(values, ","), ")");
+    state->sql_spent = absl::StrCat("SELECT \"hash\" FROM \"SpentHashes\" WHERE \"hash\" IN (", absl::StrJoin(values, ","), ")");
 
     CheckUnspentOutputs(callback, state, db);
 }
