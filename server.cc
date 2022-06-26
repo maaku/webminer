@@ -605,7 +605,7 @@ void V1::replace(
         return callback(JSONRPCError("error getting connection to database"));
     }
     auto tx = db->newTransaction();
-    if (!db) {
+    if (!tx) {
         return callback(JSONRPCError("error creating database transaction"));
     }
 
@@ -1054,7 +1054,7 @@ void V1::miningReport(
         return callback(JSONRPCError("error getting connection to database"));
     }
     auto tx = db->newTransaction();
-    if (!db) {
+    if (!tx) {
         return callback(JSONRPCError("error creating database transaction"));
     }
 
