@@ -70,8 +70,6 @@ static void SetupServer(const benchmark::State& state) {
         drogon::app().addListener("127.0.0.1", 8000);
         // Queue the promise for fulfillment after the event loop is started.
         drogon::app().getLoop()->queueInLoop([&p1]() {
-            // Clear the database
-            webcash::resetDb();
             // Signal that the event loop is running
             p1.set_value();
         });
@@ -82,6 +80,8 @@ static void SetupServer(const benchmark::State& state) {
     SHA256AutoDetect();
     // Wait for the event loop to begin processing.
     f1.get();
+    // Clear the database
+    webcash::resetDb();
     // Schedule server to be shut down
     std::atexit(TeardownServer);
 }

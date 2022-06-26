@@ -33,7 +33,14 @@
 #include "webcash.h"
 
 namespace webcash {
+// Schedules creation of the database tables within the main event processing
+// loop.  Will return before the database is actually setup, due to asynchronous
+// event processing.
 void upgradeDb();
+
+// Drops the tables in the database, and then performs a database upgrade.  This
+// is a synchronous operation and must be called after the main event loop is
+// running.
 void resetDb();
 } // webcash
 

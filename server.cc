@@ -233,7 +233,12 @@ static void _resetDb()
 }
 void resetDb()
 {
-    drogon::app().getLoop()->queueInLoop([]() {
+    // Create a promise which will only be fulfilled after the database is reset
+    std::promise<void> p1;
+    std::future<void> f1 = p1.get_future();
+    // Queue the reset logic to run during the main application event loop
+    drogon::app().getLoop()->queueInLoop([&p1]() {
+        // Log the database wipe
         if (webcash::state().logging) {
             std::stringstream ss;
             ss << "Nuking database with "
@@ -242,8 +247,13 @@ void resetDb()
                << webcash::state().num_unspent.load() << " unspent outputs." << std::endl;
             std::cout << ss.str();
         }
+        // Recreate all tables and load initial values
         _resetDb();
+        // Signal that the database has been reset
+        p1.set_value();
     });
+    // Wait for the database to be reset
+    f1.get();
 }
 } // webcash
 

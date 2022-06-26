@@ -21,6 +21,8 @@ static void SetupServer() {
     // Only run the first time
     bool already_setup = g_event_loop_setup.exchange(true);
     if (already_setup) {
+        // Clear the database
+        webcash::resetDb();
         return;
     }
     // Create a promise which will only be fulfilled after starting the main
@@ -64,6 +66,8 @@ static void SetupServer() {
     SHA256AutoDetect();
     // Wait for the event loop to begin processing.
     f1.get();
+    // Clear the database
+    webcash::resetDb();
     // Schedule server to be shut down
     std::atexit(TeardownServer);
 }
@@ -79,8 +83,6 @@ static void TeardownServer() {
 TEST(server, connection) {
     // Setup server and begin listening
     SetupServer();
-    // Clear the database
-    webcash::resetDb();
     // Setup RPC client to communicate with server
     httplib::Client cli("http://localhost:8000");
     cli.set_read_timeout(60, 0); // 60 seconds
@@ -95,8 +97,6 @@ TEST(server, connection) {
 TEST(server, stats) {
     // Setup server and begin listening
     SetupServer();
-    // Clear the database
-    webcash::resetDb();
     // Setup RPC client to communicate with server
     httplib::Client cli("http://localhost:8000");
     cli.set_read_timeout(60, 0); // 60 seconds
