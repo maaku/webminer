@@ -92,4 +92,28 @@ TEST(server, connection) {
     EXPECT_EQ(r->status, 200);
 }
 
+TEST(server, stats) {
+    // Setup server and begin listening
+    SetupServer();
+    // Clear the database
+    webcash::resetDb();
+    // Setup RPC client to communicate with server
+    httplib::Client cli("http://localhost:8000");
+    cli.set_read_timeout(60, 0); // 60 seconds
+    cli.set_write_timeout(60, 0); // 60 seconds
+    // Submit an initial solution to generate some webcash for use.
+    static const std::string preimage = absl::Base64Escape("{\"legalese\": {\"terms\": true}, \"webcash\": [\"e190000:secret:b0e7525b420bc6efa5c356d0bb707d96a9d599c5c218134bd0f1dc5cf107e213\", \"e10000:secret:301b4fe3587ac6a871c6c7d4e06595d4eab9572a0515fe7295067d4e52772ed2\"], \"subsidy\": [\"e10000:secret:301b4fe3587ac6a871c6c7d4e06595d4eab9572a0515fe7295067d4e52772ed2\"], \"difficulty\": 28, \"nonce\":      1366624}");
+    auto r = cli.Post(
+        "/api/v1/mining_report",
+        absl::StrCat("{"
+            "\"preimage\": \"", preimage, "\","
+            "\"legalese\": {"
+                "\"terms\": true"
+            "}"
+        "}"),
+        "application/json");
+    EXPECT_NE(r, nullptr);
+    EXPECT_EQ(r->status, 200);
+}
+
 // End of File
