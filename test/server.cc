@@ -97,6 +97,25 @@ TEST(server, connection) {
 TEST(server, stats) {
     // Setup server and begin listening
     SetupServer();
+
+    // Check initial stats
+    auto now = absl::Now();
+    webcash::state().genesis = now;
+    auto stats = webcash::state().getStats(now);
+    EXPECT_EQ(stats.timestamp, now);
+    EXPECT_EQ(stats.total_circulation, absl::MakeInt128(0, 0));
+    EXPECT_EQ(stats.expected_circulation, absl::MakeInt128(0, 0));
+    EXPECT_EQ(stats.num_reports, 0);
+    EXPECT_EQ(stats.num_replace, 0);
+    EXPECT_EQ(stats.num_unspent, 0);
+    EXPECT_EQ(stats.mining_amount, Amount(20000000000000ULL));
+    EXPECT_EQ(stats.subsidy_amount, Amount(1000000000000ULL));
+    EXPECT_EQ(stats.epoch, 0);
+    EXPECT_EQ(stats.difficulty, 28);
+    // "Wait" 10 seconds and see that the expected_circulation goes up
+    stats = webcash::state().getStats(now + absl::Seconds(10));
+    EXPECT_EQ(stats.expected_circulation, absl::MakeInt128(0, 20000000000000ULL));
+
     // Setup RPC client to communicate with server
     httplib::Client cli("http://localhost:8000");
     cli.set_read_timeout(60, 0); // 60 seconds
@@ -114,6 +133,22 @@ TEST(server, stats) {
         "application/json");
     EXPECT_NE(r, nullptr);
     EXPECT_EQ(r->status, 200);
+
+    // Check that genesis has been advanced to the time of submission
+    EXPECT_LT(now, webcash::state().genesis);
+
+    // Check initial stats
+    stats = webcash::state().getStats(webcash::state().genesis);
+    EXPECT_EQ(stats.timestamp, webcash::state().genesis);
+    EXPECT_EQ(stats.total_circulation, absl::MakeInt128(0, 20000000000000ULL));
+    EXPECT_EQ(stats.expected_circulation, absl::MakeInt128(0, 0));
+    EXPECT_EQ(stats.num_reports, 1);
+    EXPECT_EQ(stats.num_replace, 0);
+    EXPECT_EQ(stats.num_unspent, 2);
+    EXPECT_EQ(stats.mining_amount, Amount(20000000000000ULL));
+    EXPECT_EQ(stats.subsidy_amount, Amount(1000000000000ULL));
+    EXPECT_EQ(stats.epoch, 0);
+    EXPECT_EQ(stats.difficulty, 28);
 }
 
 // End of File
