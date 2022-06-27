@@ -1294,9 +1294,15 @@ void RecordMiningReport(
                 // Note that while each of the following statements are atomic,
                 // the combined operation is not.  It is possible for reads to
                 // interleave between these statements.
-                ++(webcash::state().num_reports);
+                auto num_reports = ++(webcash::state().num_reports);
                 webcash::state().difficulty.store(next_difficulty);
                 webcash::state().num_unspent += state->webcash.size();
+
+                // If this is the very first mining report, then we set the
+                // genesis time to the time of receipt of this first report.
+                if (num_reports == 1) {
+                    webcash::state().genesis = state->received;
+                }
 
                 if (webcash::state().logging) {
                     std::stringstream ss;
