@@ -9,6 +9,7 @@
 #include <httplib.h>
 
 #include "async.h"
+#include "random.h"
 #include "server.h"
 
 // This code is copied from the server benchmarking setup and teardown code,
@@ -137,7 +138,7 @@ TEST(server, stats) {
     // Check that genesis has been advanced to the time of submission
     EXPECT_LT(now, webcash::state().genesis);
 
-    // Check initial stats
+    // Check stats after one mining report
     stats = webcash::state().getStats(webcash::state().genesis);
     EXPECT_EQ(stats.timestamp, webcash::state().genesis);
     EXPECT_EQ(stats.total_circulation, absl::MakeInt128(0, 20000000000000ULL));
@@ -145,6 +146,40 @@ TEST(server, stats) {
     EXPECT_EQ(stats.num_reports, 1);
     EXPECT_EQ(stats.num_replace, 0);
     EXPECT_EQ(stats.num_unspent, 2);
+    EXPECT_EQ(stats.mining_amount, Amount(20000000000000ULL));
+    EXPECT_EQ(stats.subsidy_amount, Amount(1000000000000ULL));
+    EXPECT_EQ(stats.epoch, 0);
+    EXPECT_EQ(stats.difficulty, 28);
+
+    std::array<std::string, 256> secrets;
+    for (auto& wc_str : secrets) {
+        wc_str = absl::StrCat("e742.1875:secret:", absl::BytesToHexString(absl::string_view((char*)GetRandHash().begin(), 32)));
+    }
+    r = cli.Post(
+        "/api/v1/replace",
+        absl::StrCat("{"
+            "\"legalese\": {"
+                "\"terms\": true"
+            "},"
+            "\"webcashes\": ["
+                "\"e190000:secret:b0e7525b420bc6efa5c356d0bb707d96a9d599c5c218134bd0f1dc5cf107e213\""
+            "],"
+            "\"new_webcashes\": [\"",
+                absl::StrJoin(secrets, "\",\""),
+            "\"]"
+        "}"),
+        "application/json");
+    ASSERT_NE(r, nullptr);
+    EXPECT_EQ(r->status, 200);
+
+    // Check stats after a replacement
+    stats = webcash::state().getStats(webcash::state().genesis + absl::Seconds(20));
+    EXPECT_EQ(stats.timestamp, webcash::state().genesis + absl::Seconds(20));
+    EXPECT_EQ(stats.total_circulation, absl::MakeInt128(0, 20000000000000ULL));
+    EXPECT_EQ(stats.expected_circulation, absl::MakeInt128(0, 40000000000000ULL));
+    EXPECT_EQ(stats.num_reports, 1);
+    EXPECT_EQ(stats.num_replace, 1);
+    EXPECT_EQ(stats.num_unspent, 257);
     EXPECT_EQ(stats.mining_amount, Amount(20000000000000ULL));
     EXPECT_EQ(stats.subsidy_amount, Amount(1000000000000ULL));
     EXPECT_EQ(stats.epoch, 0);

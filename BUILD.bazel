@@ -106,6 +106,7 @@ cc_test(
         ":async",
         ":cpp_http",
         ":drogon",
+        ":random",
         ":server",
     ]
 )
