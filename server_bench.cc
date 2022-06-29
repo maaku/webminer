@@ -115,7 +115,7 @@ static void Server_replace(benchmark::State& state) {
     static std::array<std::string, 256> base;
     static std::atomic<bool> first_run = true;
     if (first_run.exchange(false)) {
-        // Pregenerate 32 webcash claim codes that we will need for each of the (up to) 32 threads.
+        // Pregenerate 256 webcash claim codes that we will need for each of the (up to) 32 threads.
         for (auto& wc_str : base) {
             wc_str = absl::StrCat("e742.1875:secret:", absl::BytesToHexString(absl::string_view((char*)GetRandHash().begin(), 32)));
         }
