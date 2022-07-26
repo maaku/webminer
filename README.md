@@ -105,6 +105,16 @@ bazel build -c opt webcashd
 bazel-bin/webcashd
 ```
 
+# Troubleshooting
+
+## Getting "ERROR !!!Pg connection failed: FATAL:  role "postgres" does not exist" errors when running
+
+If you installed postgresql via homebrew, homebrew does not properly add the "postgres" user. You can do this manually by doing something like:
+
+```Bash
+$ /usr/local/opt/postgres/bin/createuser -s postgres
+```
+
 # License
 
 This repository and its source code is distributed under the terms of the Mozilla Public License 2.0.  See MPL-2.0.txt.
