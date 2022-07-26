@@ -4,6 +4,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+#include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
 #include "absl/flags/usage.h"
 
@@ -16,6 +17,8 @@
 #include "async.h"
 #include "crypto/sha256.h"
 #include "server.h"
+
+ABSL_FLAG(unsigned, port, 8000, "port to listen to");
 
 int main(int argc, char **argv)
 {
@@ -50,7 +53,7 @@ int main(int argc, char **argv)
     webcash::upgradeDb();
 
     // Set HTTP listener address and port
-    app.addListener("127.0.0.1", 8000);
+    app.addListener("127.0.0.1", absl::GetFlag(FLAGS_port));
 
     // Load config file, if present
     if (boost::filesystem::exists("webcashd.conf")) {
@@ -58,6 +61,7 @@ int main(int argc, char **argv)
     }
 
     // Run HTTP server
+    std::cout << "Running webcash daemon on port " << absl::GetFlag(FLAGS_port) << std::endl;
     app.run();
 
     return 0;
