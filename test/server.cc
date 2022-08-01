@@ -249,7 +249,24 @@ TEST(server, input_as_output) {
     EXPECT_EQ(r->status, 500);
     EXPECT_EQ(webcash::state().num_replace, 0);
 
-    // Remove the secret that matches the input, and we're A-OK!
+    // Remove the secret that matches the input, but this time leave off the
+    // legalese acceptance.
+    r = cli.Post(
+        "/api/v1/replace",
+        absl::StrCat("{"
+            "\"webcashes\": ["
+                "\"e190000:secret:b0e7525b420bc6efa5c356d0bb707d96a9d599c5c218134bd0f1dc5cf107e213\""
+            "],"
+            "\"new_webcashes\": [",
+                "\"e190000:secret:312e701fc5cd1f0db431812c5c995d9a69d707bb0d653c5afe6cb024b5257e0b\""
+            "]"
+        "}"),
+        "application/json");
+    ASSERT_NE(r, nullptr);
+    EXPECT_EQ(r->status, 500);
+    EXPECT_EQ(webcash::state().num_replace, 0);
+
+    // Put the legalese back in and we're A-OK!
     r = cli.Post(
         "/api/v1/replace",
         absl::StrCat("{"
