@@ -237,8 +237,8 @@ load("@rules_cc//cc:defs.bzl", "cc_binary")
 cc_binary(
     name = "bench_webcash",
     srcs = [
-        "server_bench.cc",
-        "webcash_bench.cc",
+        "bench/server.cc",
+        "bench/webcash.cc",
     ],
     deps = [
         "@com_google_absl//absl/strings:strings",
