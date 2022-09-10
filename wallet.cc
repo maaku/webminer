@@ -50,16 +50,16 @@ enum HashType : int {
     // secrets.  These are allocated and used, as needed, in FIFO order.
     UNUSED = -1,
 
-    // Outputs generated as payments to others.  These are intended to be
-    // immediately claimed by the other party, but we keep the key in this
-    // wallet in case there are problems completing the transaction.
-    PAYMENT = 0,
-
     // Outputs added via explicit import.  These are shown as visible, discrete
     // inputs to the wallet.  The wallet always redeems received webcash upon
     // import under the assumption that the imported secret value is still known
     // to others or otherwise not secure.
-    RECEIVE = 1,
+    RECEIVE = 0,
+
+    // Outputs generated as payments to others.  These are intended to be
+    // immediately claimed by the other party, but we keep the key in this
+    // wallet in case there are problems completing the transaction.
+    PAYMENT = 1,
 
     // Internal webcash generated either to redeem payments or mined webcash,
     // change from a payment, or the consolidation of such outputs.  These
