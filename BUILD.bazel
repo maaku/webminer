@@ -197,10 +197,14 @@ cc_library(
     deps = [
         "@boost//:filesystem",
         "@boost//:interprocess",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/strings:strings",
         "@com_google_absl//absl/time:time",
+        ":cpp_http",
         ":webcash",
+        ":random",
         ":sqlite3",
+        ":univalue",
     ]
 )
 

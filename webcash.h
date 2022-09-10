@@ -47,6 +47,9 @@ struct SecretWebcash {
     SecureString sk;
     Amount amount;
 
+    SecretWebcash() = default;
+    SecretWebcash(const std::string& _sk, Amount _amount) : sk(_sk), amount(_amount) {}
+
     bool parse(const absl::string_view& str);
 };
 
@@ -58,7 +61,7 @@ inline bool operator<=(const SecretWebcash& lhs, const SecretWebcash& rhs) { ret
 inline bool operator>=(const SecretWebcash& lhs, const SecretWebcash& rhs) { return std::tie(lhs.amount, lhs.sk) >= std::tie(rhs.amount, rhs.sk); }
 inline bool operator>(const SecretWebcash& lhs, const SecretWebcash& rhs) { return std::tie(lhs.amount, lhs.sk) > std::tie(rhs.amount, rhs.sk); }
 
-std::string to_string(const SecretWebcash& esk);
+SecureString to_string(const SecretWebcash& esk);
 
 struct PublicWebcash {
     uint256 pk;

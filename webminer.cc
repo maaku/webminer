@@ -348,7 +348,7 @@ void update_thread_func()
             }
 
             // Claim the coin with our wallet
-            if (!g_wallet->Insert(soln.webcash)) {
+            if (!g_wallet->Insert(soln.webcash, true)) {
                 // Save the successfully submitted webcash to the log, since we
                 // were unable to add it to the wallet.
                 std::ofstream webcash_log(webcash_log_filename, std::ofstream::app);
@@ -452,7 +452,7 @@ void mining_thread_func(int id)
         subsidy.sk = absl::BytesToHexString(absl::string_view((const char*)sk.begin(), sk.size()));
         memory_cleanse(sk.begin(), 32);
 
-        std::string subsidy_str = to_string(subsidy);
+        std::string subsidy_str = std::string(to_string(subsidy).c_str());
         // The miner won't get this far if the terms of service aren't agreed
         // to, so we can safely hard-code acceptance here.
         std::string prefix = absl::StrCat("{\"legalese\": {\"terms\": true}, \"webcash\": [\"", to_string(keep), "\", \"", subsidy_str, "\"], \"subsidy\": [\"", subsidy_str, "\"], \"difficulty\": ", to_string(g_difficulty), ", \"timestamp\": ", to_string(absl::ToDoubleSeconds(absl::Now() - absl::UnixEpoch())), ", \"nonce\": ");
@@ -509,6 +509,16 @@ int main(int argc, char **argv)
 
     const std::string server = absl::GetFlag(FLAGS_server);
 
+    // The random subsystem must be initialized before the wallet is created on
+    // first use, or else generated secrets may not be secure.  The random
+    // subsystem will auto-initialize itself on first invocation, but we do so
+    // explicitly here to make sure we don't rely on this behavior.
+    RandomInit();
+    if (!Random_SanityCheck()) {
+        std::cerr << "Error: RNG sanity check failed. RNG is not secure." << std::endl;
+        return 1;
+    }
+
     // Open the wallet file, which will throw an error if the walletfile
     // parameter is unusable.
     g_wallet = std::unique_ptr<Wallet>(new Wallet(absl::GetFlag(FLAGS_walletfile)));
@@ -558,12 +568,6 @@ int main(int argc, char **argv)
         // Do the same for the orphan log as well.
         std::ofstream orphan_log(absl::GetFlag(FLAGS_orphanlog), std::ofstream::app);
         orphan_log.flush();
-    }
-
-    RandomInit();
-    if (!Random_SanityCheck()) {
-        std::cerr << "Error: RNG sanity check failed. RNG is not secure." << std::endl;
-        return 1;
     }
 
     int num_workers = get_num_workers();
