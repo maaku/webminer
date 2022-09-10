@@ -832,7 +832,24 @@ bool Wallet::Insert(const SecretWebcash& sk, bool mine)
     woutput.spent = false;
 
     // Generate change address.
-    WalletSecret wchange = ReserveSecret(now, /* mine = */ true, /* sweep = */ false);
+    // FIXME: This is breaking with webcash wallet standards; sweep shoud really
+    //        be false here.  The reason we do it this way is a bit of a
+    //        hack/workaround. Until webminer has full wallet support, it is
+    //        easiest for users to import their root key into webcasa and use
+    //        that as their wallet.  However any payments made in webcasa will
+    //        use change addresses, which could potentially result in webminer
+    //        insertions failing due to secret reuse.
+    //
+    //        The workaround is to use HashType::MINING for change addresses
+    //        when replacing secrets.  This is not what the HashType::MINING
+    //        chain code is meant to be used for.  It is meant to be the way in
+    //        which mining payload secrets are generated, hence why sweep=true.
+    //        However webminer currently uses random secrets for the mining
+    //        payload, and until a proper wallet is implemented this at least
+    //        achieves domain separation from webminer and webcasa.
+    //
+    //                                                         should be false <==>
+    WalletSecret wchange = ReserveSecret(now, /* mine = */ true, /* sweep = */ true);
     SecretWebcash change(wchange.secret, sk.amount);
 
     std::vector<WalletOutput> inputs;
