@@ -22,7 +22,7 @@ cc_library(
 cc_library(
     name = "common",
     defines = select({
-        "@bazel_tools//src/conditions:windows": ["WIN32"],
+        "@platforms//os:windows": ["WIN32"],
         "//conditions:default": [],
     }),
     hdrs = [
@@ -57,7 +57,7 @@ cc_library(
 cc_library(
     name = "random",
     defines = select({
-        "@bazel_tools//src/conditions:windows": ["WIN32"],
+        "@platforms//os:windows": ["WIN32"],
         "//conditions:default": [],
     }),
     hdrs = [
@@ -324,7 +324,7 @@ cmake(
         "BUILD_POSTGRESQL": "ON",
     },
     linkopts = select({
-        "@bazel_tools//src/conditions:linux": ['-ldl', '-luuid', '-lcrypto', '-lssl', '-lstdc++fs'],
+        "@platforms//os:linux": ['-ldl', '-luuid', '-lcrypto', '-lssl', '-lstdc++fs'],
         "//conditions:default": [],
     }),
     lib_source = "@drogon//:all_srcs",
@@ -350,7 +350,7 @@ configure_make(
     lib_source = "@postgres//:all_srcs",
     out_static_libs = ["libpgcommon.a"],
     out_shared_libs = select({
-        "@bazel_tools//src/conditions:darwin": [
+        "@platforms//os:macos": [
             "libpq.dylib",
         ],
         "//conditions:default": [
