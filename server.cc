@@ -1310,8 +1310,6 @@ void RecordMiningReport(
                        << " aggregate_work=" << log2(aggregate_work)
                        << " difficulty=" << next_difficulty
                        << " reports=" << stats.num_reports
-                       << " reports=" << stats.num_reports
-                       << " reports=" << stats.num_reports
                        << " tx=" << stats.num_replace
                        << " unspent=" << stats.num_unspent
                        << std::endl;
