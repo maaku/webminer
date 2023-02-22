@@ -152,7 +152,9 @@ class V1
     : public drogon::HttpController<V1>
 {
 protected:
-    const ssize_t k_target_cache_expiry = 2 * 60 * 60 /* 2 hours */;
+    // This is purely for DoS prevention purposes.  The target API is expected
+    // to deliver reliable, up-to-date information.
+    const ssize_t k_target_cache_expiry = 1 /* 1 second */;
 
 public:
     METHOD_LIST_BEGIN
