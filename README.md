@@ -59,7 +59,7 @@ cat webcash.log | xargs -n 25 webcash insertmany
 
 ### With cleaning the log file
 ```
-cat webcash.log | xargs -n 25 webcash insertmany | > webcash_claim.log && echo -n > webcash.log
+cat webcash.log | xargs -n 25 webcash insertmany | >> webcash_claim.log && echo -n > webcash.log
 ```
 
 Or something similar along those lines.
