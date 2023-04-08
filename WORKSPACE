@@ -44,8 +44,7 @@ git_repository(
 git_repository(
     name = "brotli",
     remote = "https://github.com/google/brotli",
-    commit = "9801a2c5d6c67c467ffad676ac301379bb877fc3",
-    shallow_since = "1652341848 +0300",
+    commit = "ed1995b6bda19244070ab5d331111f16f67c8054",
 )
 
 # googletest source code repository
