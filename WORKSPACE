@@ -35,9 +35,9 @@ boost_deps()
 # boringssl source code repository
 git_repository(
     name = "boringssl",
-    remote = "https://github.com/google/boringssl.git",
-    commit = "2a0e6de411bb141e2fe169cee445741137478ef3",
-    shallow_since = "1641854268 +0000",
+    remote = "https://boringssl.googlesource.com/boringssl",
+    commit = "024da0750d919e5b6a79e51988122494fce64ef5",
+    shallow_since = "1684274176 +0000",
 )
 
 # brotli source code repository
