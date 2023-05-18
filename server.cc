@@ -773,7 +773,7 @@ void RecordToAuditLog(
         >> [=](const Result &r) {
             if (r.empty() || !r[0].size() || !(state->replacement_id = r[0][0].as<uint64_t>())) {
                 std::cerr << "error: Expected one row of one column containing inserted id.  Got something else." << std::endl;
-                std::cerr << "error: Offending SQL: " << state->sql_check_outputs << std::endl;
+                std::cerr << "error: Offending SQL: " << sql << std::endl;
                 tx->rollback();
                 return callback(JSONRPCError("sql error"));
             }
