@@ -49,7 +49,7 @@ using Json::ValueType::objectValue;
 namespace webcash {
 static void _upgradeDb()
 {
-    const std::array<std::string, 6> create_tables = {
+    const std::array<std::string, 8> create_tables = {
         "CREATE TABLE IF NOT EXISTS \"MiningReports\"("
             "\"id\" BIGSERIAL PRIMARY KEY NOT NULL,"
             "\"received\" BIGINT NOT NULL,"
@@ -74,6 +74,16 @@ static void _upgradeDb()
             "\"amount\" BIGINT NOT NULL,"
             "FOREIGN KEY(\"replacement_id\") REFERENCES \"Replacements\"(\"id\"),"
             "UNIQUE(\"hash\", \"replacement_id\"))",
+        "CREATE TABLE IF NOT EXISTS \"Burns\"("
+            "\"id\" BIGSERIAL PRIMARY KEY NOT NULL,"
+            "\"received\" BIGINT NOT NULL)",
+        "CREATE TABLE IF NOT EXISTS \"BurnInputs\"("
+            "\"id\" BIGSERIAL PRIMARY KEY NOT NULL,"
+            "\"burn_id\" BIGINT NOT NULL,"
+            "\"hash\" BYTEA NOT NULL,"
+            "\"amount\" BIGINT NOT NULL,"
+            "FOREIGN KEY(\"burn_id\") REFERENCES \"Burns\"(\"id\"),"
+            "UNIQUE(\"hash\", \"burn_id\"))",
         "CREATE TABLE IF NOT EXISTS \"UnspentOutputs\"("
             "\"id\" BIGSERIAL PRIMARY KEY NOT NULL,"
             "\"hash\" BYTEA UNIQUE NOT NULL,"
@@ -131,6 +141,28 @@ static void _upgradeDb()
                 std::cout << ss.str();
             }
             webcash::state().num_replace.store(num_replace);
+        } catch (const DrogonDbException &e) {
+            std::cerr << "error: " << e.base().what() << std::endl;
+            std::cerr << "error: Offending SQL: " << sql << std::endl;
+            drogon::app().quit();
+        }
+    }
+    {
+        static const std::string sql = "SELECT COUNT(1) FROM \"Burns\"";
+        try {
+            const Result r = db->execSqlSync(sql);
+            if (r.empty() || !r[0].size()) {
+                std::cerr << "error: Expected one row of one column containing count.  Got something else." << std::endl;
+                std::cerr << "error: Offending SQL: " << sql << std::endl;
+                drogon::app().quit();
+            }
+            unsigned num_burn = r[0][0].as<unsigned>();
+            if (webcash::state().logging) {
+                std::stringstream ss;
+                ss << "Loaded " << num_burn << " burns." << std::endl;
+                std::cout << ss.str();
+            }
+            webcash::state().num_burn.store(num_burn);
         } catch (const DrogonDbException &e) {
             std::cerr << "error: " << e.base().what() << std::endl;
             std::cerr << "error: Offending SQL: " << sql << std::endl;
@@ -209,9 +241,11 @@ void upgradeDb()
 
 static void _resetDb()
 {
-    const std::array<std::string, 6> drop_tables = {
+    const std::array<std::string, 8> drop_tables = {
         "DROP TABLE IF EXISTS \"SpentHashes\"",
         "DROP TABLE IF EXISTS \"UnspentOutputs\"",
+        "DROP TABLE IF EXISTS \"BurnInputs\"",
+        "DROP TABLE IF EXISTS \"Burns\"",
         "DROP TABLE IF EXISTS \"ReplacementOutputs\"",
         "DROP TABLE IF EXISTS \"ReplacementInputs\"",
         "DROP TABLE IF EXISTS \"Replacements\"",
@@ -243,7 +277,8 @@ void resetDb()
             std::stringstream ss;
             ss << "Nuking database with "
                << webcash::state().num_reports.load() << " mining reports, "
-               << webcash::state().num_replace.load() << " replacements, and "
+               << webcash::state().num_replace.load() << " replacements, "
+               << webcash::state().num_burn.load()    << " burns, and "
                << webcash::state().num_unspent.load() << " unspent outputs." << std::endl;
             std::cout << ss.str();
         }
@@ -272,7 +307,9 @@ WebcashStats WebcashEconomy::getStats(absl::Time now)
     // stuck in an "infinte" loop.  Instead we just accept that these numbers
     // might not be precisely accurate to each other.
     stats.num_replace = num_replace.load();
+    stats.num_burn = num_burn.load();
     stats.num_unspent = num_unspent.load();
+    stats.total_destroyed = total_destroyed.load();
 
     stats.total_circulation = 0;
     auto count = stats.num_reports;
@@ -803,6 +840,255 @@ void ReportReplacement(
                << " input for " << state->outputs.size()
                << " output (total: ₩" << to_string(state->total_in) << ")."
                << " tx=" << webcash::state().num_replace.load()
+               << " burn=" << webcash::state().num_burn.load()
+               << " unspent=" << webcash::state().num_unspent.load()
+               << std::endl;
+            std::cout << ss.str();
+        }
+
+        Json::Value ret(objectValue);
+        ret["status"] = "success";
+        auto resp = HttpResponse::newHttpJsonResponse(std::move(ret));
+        return callback(resp);
+    });
+}
+
+//  --------------
+// | /api/v1/burn |
+//  --------------
+
+struct BurnState {
+    // The actual replacement request from the caller.
+    std::shared_ptr<Json::Value> msg;
+    // The system clock time when the replace request was received by us.
+    absl::Time received = absl::UnixEpoch();
+    // The inputs webcash secrets to be burnt, as provided by the caller.
+    std::map<uint256, SecretWebcash> inputs;
+    // A straight summation over the inputs.
+    Amount total_in = Amount{0};
+    // Pre-constructed SQL statements.
+    std::string sql_check_inputs;
+    std::string sql_store_spends;
+    std::string sql_delete_inputs;
+    std::string sql_audit_log_inputs;
+    // The primary key of the Burns record for the audit log.  Used to
+    // create records in the BurnInputs one-to-many join table.
+    uint64_t burn_id = 0;
+};
+
+void CheckInputsExist(
+    std::function<void (const HttpResponsePtr &)> callback,
+    std::shared_ptr<BurnState> state,
+    std::shared_ptr<Transaction> tx); // Calls CheckOutputsDoNotExist...
+
+void RecordSpends(
+    std::function<void (const HttpResponsePtr &)> callback,
+    std::shared_ptr<BurnState> state,
+    std::shared_ptr<Transaction> tx); // etc.
+
+void RemoveInputs(
+    std::function<void (const HttpResponsePtr &)> callback,
+    std::shared_ptr<BurnState> state,
+    std::shared_ptr<Transaction> tx);
+
+void RecordToAuditLog(
+    std::function<void (const HttpResponsePtr &)> callback,
+    std::shared_ptr<BurnState> state,
+    std::shared_ptr<Transaction> tx);
+
+void RecordToAuditLogInputs(
+    std::function<void (const HttpResponsePtr &)> callback,
+    std::shared_ptr<BurnState> state,
+    std::shared_ptr<Transaction> tx);
+
+void ReportBurn(
+    std::function<void (const HttpResponsePtr &)> callback,
+    std::shared_ptr<BurnState> state,
+    std::shared_ptr<Transaction> tx); // Done
+
+void V1::burn(
+    const HttpRequestPtr &req,
+    std::function<void (const HttpResponsePtr &)> &&callback
+){
+    absl::Time _received = absl::Now();
+    auto state = std::make_shared<BurnState>();
+    state->received = _received;
+
+    state->msg = req->getJsonObject();
+    if (!state->msg || !state->msg->isObject()) {
+        return callback(JSONRPCError("no JSON body"));
+    }
+    if (!check_legalese(*state->msg)) {
+        return callback(JSONRPCError("didn't accept terms"));
+    }
+
+    // Extract 'inputs'
+    if (!state->msg->isMember("destroy_webcash")) {
+        return callback(JSONRPCError("no inputs"));
+    }
+    if (!parse_secret_webcashes((*state->msg)["destroy_webcash"], state->inputs)) {
+        return callback(JSONRPCError("can't parse inputs"));
+    }
+    state->total_in = Amount(0);
+    std::vector<std::string> input_values_hash_with_amount;
+    std::vector<std::string> input_values_hash_only;
+    input_values_hash_with_amount.reserve(state->inputs.size());
+    input_values_hash_only.reserve(state->inputs.size());
+    for (const auto& item : state->inputs) {
+        const uint256& hash = item.first;
+        const SecretWebcash& wc = item.second;
+        state->total_in += wc.amount;
+        if (state->total_in < 1 || wc.amount < 1) {
+            return callback(JSONRPCError("overflow"));
+        }
+        std::string hash_hex = absl::BytesToHexString(absl::string_view((char*)hash.data(), 32));
+        input_values_hash_with_amount.push_back(absl::StrCat("('\\x", hash_hex, "'::bytea,", to_string(wc.amount.i64), ")"));
+        input_values_hash_only.push_back(absl::StrCat("('\\x", hash_hex, "'::bytea)"));
+    }
+
+    // Prepare SQL statements
+    state->sql_check_inputs = absl::StrCat("WITH \"InputHashAmount\"(\"hash\",\"amount\") AS (VALUES", absl::StrJoin(input_values_hash_with_amount, ","), ") SELECT COUNT(1) FROM \"UnspentOutputs\" INNER JOIN \"InputHashAmount\" ON \"UnspentOutputs\".\"hash\"=\"InputHashAmount\".\"hash\" AND \"UnspentOutputs\".\"amount\"=\"InputHashAmount\".\"amount\"");
+    state->sql_store_spends = absl::StrCat("INSERT INTO \"SpentHashes\" (\"hash\") VALUES", absl::StrJoin(input_values_hash_only, ","), "ON CONFLICT DO NOTHING");
+    state->sql_delete_inputs = absl::StrCat("DELETE FROM \"UnspentOutputs\" WHERE \"hash\" IN (SELECT * FROM (VALUES", absl::StrJoin(input_values_hash_only, ","), ") AS hashes)");
+    state->sql_audit_log_inputs = absl::StrCat("INSERT INTO \"BurnInputs\" (\"burn_id\", \"hash\", \"amount\") SELECT $1, * FROM (VALUES", absl::StrJoin(input_values_hash_with_amount, ","), ") AS inputs");
+
+    // Now we perform checks that require access to global state.
+    auto db = drogon::app().getDbClient();
+    if (!db) {
+        return callback(JSONRPCError("error getting connection to database"));
+    }
+    auto tx = db->newTransaction();
+    if (!tx) {
+        return callback(JSONRPCError("error creating database transaction"));
+    }
+
+    return CheckInputsExist(callback, state, tx);
+}
+
+void CheckInputsExist(
+    std::function<void (const HttpResponsePtr &)> callback,
+    std::shared_ptr<BurnState> state,
+    std::shared_ptr<Transaction> tx
+){
+    *tx << state->sql_check_inputs
+        >> [=](const Result &r) {
+            if (r.empty() || !r[0].size()) {
+                std::cerr << "error: Expected one row of one column containing count.  Got something else." << std::endl;
+                std::cerr << "error: Offending SQL: " << state->sql_check_inputs << std::endl;
+                tx->rollback();
+                return callback(JSONRPCError("sql error"));
+            }
+
+            unsigned found = r[0][0].as<unsigned>();
+            if (found != state->inputs.size()) {
+                std::cerr << "error: One or more specified input values not found in database." << std::endl;
+                std::cerr << "error: only " << to_string(found) << " of " << to_string(state->inputs.size()) << " inputs are valid." << std::endl;
+                tx->rollback();
+                return callback(JSONRPCError("input(s) not found"));
+            }
+
+            return RecordSpends(callback, state, tx);
+        }
+        >> [=](const DrogonDbException &e) {
+            std::cerr << "error: " << e.base().what() << std::endl;
+            std::cerr << "error: Offending SQL: " << state->sql_check_inputs << std::endl;
+            return callback(JSONRPCError("sql error"));
+        };
+}
+
+void RecordSpends(
+    std::function<void (const HttpResponsePtr &)> callback,
+    std::shared_ptr<BurnState> state,
+    std::shared_ptr<Transaction> tx
+){
+    *tx << state->sql_store_spends
+        >> [=](const Result &r) {
+            RemoveInputs(callback, state, tx);
+        }
+        >> [=](const DrogonDbException &e) {
+            std::cerr << "error: " << e.base().what() << std::endl;
+            std::cerr << "error: Offending SQL: " << state->sql_store_spends << std::endl;
+            return callback(JSONRPCError("sql error"));
+        };
+}
+
+void RemoveInputs(
+    std::function<void (const HttpResponsePtr &)> callback,
+    std::shared_ptr<BurnState> state,
+    std::shared_ptr<Transaction> tx
+){
+    *tx << state->sql_delete_inputs
+        >> [=](const Result &r) {
+            RecordToAuditLog(callback, state, tx);
+        }
+        >> [=](const DrogonDbException &e) {
+            std::cerr << "error: " << e.base().what() << std::endl;
+            std::cerr << "error: Offending SQL: " << state->sql_delete_inputs << std::endl;
+            return callback(JSONRPCError("sql error"));
+        };
+}
+
+void RecordToAuditLog(
+    std::function<void (const HttpResponsePtr &)> callback,
+    std::shared_ptr<BurnState> state,
+    std::shared_ptr<Transaction> tx
+){
+    static const std::string sql = absl::StrCat("INSERT INTO \"Burns\" (\"received\") VALUES($1) RETURNING \"id\"");
+    *tx << sql
+        << absl::ToUnixNanos(state->received)
+        >> [=](const Result &r) {
+            if (r.empty() || !r[0].size() || !(state->burn_id = r[0][0].as<uint64_t>())) {
+                std::cerr << "error: Expected one row of one column containing inserted id.  Got something else." << std::endl;
+                std::cerr << "error: Offending SQL: " << sql << std::endl;
+                tx->rollback();
+                return callback(JSONRPCError("sql error"));
+            }
+            RecordToAuditLogInputs(callback, state, tx);
+        }
+        >> [=](const DrogonDbException &e) {
+            std::cerr << "error: " << e.base().what() << std::endl;
+            std::cerr << "error: Offending SQL: " << sql << std::endl;
+            return callback(JSONRPCError("sql error"));
+        };
+}
+
+void RecordToAuditLogInputs(
+    std::function<void (const HttpResponsePtr &)> callback,
+    std::shared_ptr<BurnState> state,
+    std::shared_ptr<Transaction> tx
+){
+    *tx << state->sql_audit_log_inputs
+        << state->burn_id
+        >> [=](const Result &r) {
+            ReportBurn(callback, state, tx);
+        }
+        >> [=](const DrogonDbException &e) {
+            std::cerr << "error: " << e.base().what() << std::endl;
+            std::cerr << "error: Offending SQL: " << state->sql_audit_log_inputs << std::endl;
+            return callback(JSONRPCError("sql error"));
+        };
+}
+
+void ReportBurn(
+    std::function<void (const HttpResponsePtr &)> callback,
+    std::shared_ptr<BurnState> state,
+    std::shared_ptr<Transaction> tx
+){
+    tx->setCommitCallback([=](bool){
+        // Note that while each of these updates are atomic, the combination is
+        // not.  It is possible for a read of the field to occur inbetween the
+        // statements.  At this time this field is informational only, so that
+        // is not a concern.
+        ++(webcash::state().num_burn);
+        webcash::state().num_unspent -= state->inputs.size();
+        webcash::state().total_destroyed += state->total_in.i64;
+
+        if (webcash::state().logging) {
+            std::stringstream ss;
+            ss << "Burned " << state->inputs.size()
+               << " input (total: ₩" << to_string(state->total_in) << ")."
+               << " tx=" << webcash::state().num_replace.load()
+               << " burn=" << webcash::state().num_burn.load()
                << " unspent=" << webcash::state().num_unspent.load()
                << std::endl;
             std::cout << ss.str();
@@ -1311,6 +1597,7 @@ void RecordMiningReport(
                        << " difficulty=" << next_difficulty
                        << " reports=" << stats.num_reports
                        << " tx=" << stats.num_replace
+                       << " burns=" << stats.num_burn
                        << " unspent=" << stats.num_unspent
                        << std::endl;
                     std::cout << ss.str();

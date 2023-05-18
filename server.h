@@ -57,12 +57,19 @@ struct Replacement {
     absl::Time received;
 };
 
+struct Burn {
+    std::map<uint256, Amount> coins;
+    absl::Time received;
+};
+
 struct WebcashStats {
     absl::Time timestamp;
     absl::uint128 total_circulation = 0;
     absl::uint128 expected_circulation = 0;
+    absl::uint128 total_destroyed = 0;
     unsigned num_reports;
     unsigned num_replace;
+    unsigned num_burn;
     unsigned num_unspent;
     Amount mining_amount;
     Amount subsidy_amount;
@@ -79,8 +86,10 @@ public: // should be protected:
     static const unsigned k_look_back_window = 128;
     const absl::Duration k_target_interval = absl::Seconds(10);
     std::atomic<unsigned> difficulty = 28; // cached
+    std::atomic<uint64_t> total_destroyed = 0; // cached
     std::atomic<size_t> num_reports = 0; // cached
     std::atomic<size_t> num_replace = 0; // cached
+    std::atomic<size_t> num_burn = 0; // cached
     std::atomic<size_t> num_unspent = 0; // cached
     // treated as constant
     absl::Time genesis = absl::Now();
@@ -159,12 +168,17 @@ protected:
 public:
     METHOD_LIST_BEGIN
         METHOD_ADD(V1::replace, "/replace", drogon::Post);
+        METHOD_ADD(V1::burn, "/burn", drogon::Post);
         METHOD_ADD(V1::target, "/target", drogon::Get);
         METHOD_ADD(V1::miningReport, "/mining_report", drogon::Post);
         METHOD_ADD(V1::healthCheck, "/health_check", drogon::Post);
     METHOD_LIST_END
 
     void replace(
+        const drogon::HttpRequestPtr &req,
+        std::function<void (const drogon::HttpResponsePtr &)> &&callback);
+
+    void burn(
         const drogon::HttpRequestPtr &req,
         std::function<void (const drogon::HttpResponsePtr &)> &&callback);
 
