@@ -75,7 +75,7 @@ On Linux it is sufficient to just install the client libraries, but due to a bug
 
 ```
 # ubuntu/debian
-sudo apt-get install libpq-dev libssl-dev uuid-dev
+sudo apt-get install libpq-dev libssl-dev uuid-dev zlib1g-dev
 ```
 
 Note: If you previously tried to build `webcashd` or its dependencies (e.g. for the server benchmarks or tests), you will need to clean the bazel build cache with `bazel clean` after installing the above build dependencies.  This is because the `drogon` web server detects PostgreSQL support during build time, and the installation of the missing dependencies which should trigger a rebuild isn't picked up by the bazel build system.
